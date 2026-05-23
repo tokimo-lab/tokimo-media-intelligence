@@ -47,7 +47,7 @@ futures-util = "0.3"
 
 # Model download
 reqwest = { version = "0.13", default-features = false, features = ["rustls", "stream", "json"] }
-rust-client-api = { path = "../rust-client-api" }
+tokimo-media-scraper = { git = "https://github.com/tokimo-lab/tokimo-package-media-scraper.git", rev = "b124c1c" }
 zip = { version = "8", default-features = false, features = ["deflate"] }
 
 # Worker protocol transports need these for HTTP helper types

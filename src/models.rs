@@ -1,7 +1,7 @@
 /// Download model files if missing.
 use crate::config::AiConfig;
-use rust_client_api::model_downloader::ModelDownloader;
 use std::path::Path;
+use tokimo_media_scraper::model_downloader::ModelDownloader;
 
 struct ModelFile {
     rel_path: &'static str,
@@ -19,7 +19,7 @@ pub enum ModelCategory {
 }
 
 /// Progress callback: (`file_name`, status, percent 0-100, `downloaded_bytes`, `total_bytes`)
-pub type ProgressFn = rust_client_api::model_downloader::ProgressFn;
+pub type ProgressFn = tokimo_media_scraper::model_downloader::ProgressFn;
 
 const MODEL_FILES: &[ModelFile] = &[
     // CLIP models (from MT-Photos release, publicly accessible)
