@@ -254,9 +254,7 @@ impl Transport for UdsTransport {
         Req: Serialize + Sync,
         Res: DeserializeOwned + Send,
     {
-        Err(RpcError::Transport(
-            "UDS transport not supported on Windows".into(),
-        ))
+        Err(RpcError::Transport("UDS transport not supported on Windows".into()))
     }
 
     async fn call_stream<Req, Item>(&self, _route: &str, _req: &Req) -> RpcResult<mpsc::Receiver<RpcResult<Item>>>
@@ -264,9 +262,7 @@ impl Transport for UdsTransport {
         Req: Serialize + Sync,
         Item: DeserializeOwned + Send + 'static,
     {
-        Err(RpcError::Transport(
-            "UDS transport not supported on Windows".into(),
-        ))
+        Err(RpcError::Transport("UDS transport not supported on Windows".into()))
     }
 
     async fn open_bidi<C, S>(&self, _route: &str) -> RpcResult<BidiStream<C, S>>
@@ -274,9 +270,7 @@ impl Transport for UdsTransport {
         C: Serialize + Send + Sync + 'static,
         S: DeserializeOwned + Send + 'static,
     {
-        Err(RpcError::Transport(
-            "UDS transport not supported on Windows".into(),
-        ))
+        Err(RpcError::Transport("UDS transport not supported on Windows".into()))
     }
 }
 
