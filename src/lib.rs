@@ -424,7 +424,20 @@ impl AiService {
         // OnceLock — first call wins; subsequent AiService::new calls (tests) are no-ops.
         let _ = ACTIVE_EP.set(ep);
 
-        let applied = ort::init().commit();
+        let applied = {
+            let data_local =
+                std::path::PathBuf::from(std::env::var("DATA_LOCAL_PATH").unwrap_or_else(|_| "./.data".to_string()));
+            match worker::client::resolve_ort_dylib_path(&data_local) {
+                Some(dylib_path) => ort::init_from(dylib_path).map_or_else(
+                    |e| {
+                        tracing::warn!("init_from failed ({e}), falling back to default init");
+                        ort::init().commit()
+                    },
+                    ort::environment::EnvironmentBuilder::commit,
+                ),
+                None => ort::init().commit(),
+            }
+        };
         if applied {
             tracing::info!("ONNX Runtime initialized — EP: {ep_desc}");
         }

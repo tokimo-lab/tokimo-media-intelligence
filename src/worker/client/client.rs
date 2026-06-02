@@ -75,8 +75,7 @@ impl AiWorkerClient {
         let socket_path = settings
             .socket_path
             .as_deref()
-            .map(std::path::PathBuf::from)
-            .unwrap_or_else(|| data_local_path.join("ai-worker.sock"));
+            .map_or_else(|| data_local_path.join("ai-worker.sock"), std::path::PathBuf::from);
 
         let worker_binary = resolve_worker_binary(settings.worker_binary.as_deref());
 

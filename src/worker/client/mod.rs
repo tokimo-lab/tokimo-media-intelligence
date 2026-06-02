@@ -23,59 +23,46 @@ pub use client::{AiWorkerClient, StreamingSttSession};
 pub use settings::{AiWorkerMode, AiWorkerSettings};
 pub use supervisor::{Supervisor, SupervisorConfig};
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
-/// Resolve the ONNX Runtime shared library path and set `ORT_DYLIB_PATH` if
-/// not already set. Search order:
+/// Resolve the ONNX Runtime shared library path. Search order:
 ///   1. `bin/onnxruntime/current/lib/` (deps.toml-managed, preferred)
 ///   2. `<data_local_path>/vendors/onnxruntime/lib/` (legacy compat)
 ///   3. perception python sidecar venv (dev fallback)
-pub fn resolve_ort_dylib_path(data_local_path: &Path) {
-    if std::env::var("ORT_DYLIB_PATH").is_ok() {
-        return;
-    }
-
-    let repo_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+pub fn resolve_ort_dylib_path(data_local_path: &Path) -> Option<PathBuf> {
+    let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent() // packages/
         .and_then(|p| p.parent()) // repo root
-        .map(std::path::Path::to_path_buf);
+        .map(Path::to_path_buf);
 
     // 1. New deps.toml-managed location
-    let mut resolved = false;
     if let Some(root) = repo_root.as_ref() {
-        let new_path = root.join("bin/onnxruntime/current/lib/libonnxruntime.so");
-        if new_path.exists() {
-            unsafe { std::env::set_var("ORT_DYLIB_PATH", &new_path) };
-            resolved = true;
+        let p = root.join("bin/onnxruntime/current/lib/libonnxruntime.so");
+        if p.exists() {
+            return Some(p);
         }
     }
     // 2. Legacy install location
-    if !resolved {
-        let canonical = data_local_path.join("vendors/onnxruntime/lib/libonnxruntime.so");
-        if canonical.exists() {
-            unsafe { std::env::set_var("ORT_DYLIB_PATH", &canonical) };
-            resolved = true;
-        }
+    let canonical = data_local_path.join("vendors/onnxruntime/lib/libonnxruntime.so");
+    if canonical.exists() {
+        return Some(canonical);
     }
     // 3. perception python sidecar venv — onnxruntime installed as a Python dependency
-    if !resolved
-        && let Some(venv) = repo_root.map(|r| r.join("packages/tokimo-perception/python/.venv"))
+    if let Some(venv) = repo_root.map(|r| r.join("packages/tokimo-perception/python/.venv"))
         && let Ok(entries) = std::fs::read_dir(venv.join("lib"))
     {
-        'outer: for py_ver in entries.flatten() {
+        for py_ver in entries.flatten() {
             let capi = py_ver.path().join("site-packages/onnxruntime/capi");
             if let Ok(capi_entries) = std::fs::read_dir(&capi) {
                 for entry in capi_entries.flatten() {
                     let name = entry.file_name();
                     let name = name.to_string_lossy();
                     if name.starts_with("libonnxruntime.so") {
-                        unsafe {
-                            std::env::set_var("ORT_DYLIB_PATH", entry.path());
-                        };
-                        break 'outer;
+                        return Some(entry.path());
                     }
                 }
             }
         }
     }
+    None
 }
