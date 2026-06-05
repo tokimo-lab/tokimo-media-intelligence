@@ -1,1 +1,0 @@
-{"rustc":12552724960088552124,"features":"[]","declared_features":"[]","target":3969741579377267933,"profile":2241668132362809309,"path":7240459520833614384,"deps":[],"local":[{"CheckDepInfo":{"dep_info":"debug/.fingerprint/pxfm-25c51237d53a3a4c/dep-lib-pxfm","checksum":false}}],"rustflags":["-C","link-arg=-fuse-ld=mold"],"config":9396254390672932401,"compile_kind":0}
