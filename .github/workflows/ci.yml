@@ -9,6 +9,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
+  ORT_VERSION: "1.24.4"
 
 jobs:
   lint:
@@ -43,6 +44,13 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
 
+      - name: Download ONNX Runtime
+        shell: bash
+        run: |
+          mkdir -p bin/onnxruntime/current
+          curl -sL "https://github.com/microsoft/onnxruntime/releases/download/v${{ env.ORT_VERSION }}/onnxruntime-linux-x64-${{ env.ORT_VERSION }}.tgz" | tar -xzf - -C bin/onnxruntime/current --strip-components=1
+          echo "ORT_DYLIB_PATH=${{ github.workspace }}/bin/onnxruntime/current/lib/libonnxruntime.so" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=${{ github.workspace }}/bin/onnxruntime/current/lib:${LD_LIBRARY_PATH}" >> "$GITHUB_ENV"
+
       - name: cargo test
         run: cargo test
-
