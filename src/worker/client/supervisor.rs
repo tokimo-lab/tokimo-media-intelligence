@@ -130,7 +130,8 @@ impl Supervisor {
         if let Some(models) = &self.cfg.models_dir {
             cmd.arg("--models-dir").arg(models);
         }
-        cmd.arg("--idle-exit-secs").arg(self.cfg.idle_secs.to_string());
+        cmd.arg("--idle-exit-secs")
+            .arg(self.cfg.idle_secs.to_string());
 
         for (k, v) in &self.cfg.extra_env {
             cmd.env(k, v);
@@ -188,11 +189,17 @@ impl Supervisor {
         let deadline = Instant::now() + Duration::from_secs(30);
         let mut delay = Duration::from_millis(50);
         loop {
-            if let Ok(_pong) = self.transport.call::<_, wire::Pong>(routes::PING, &()).await {
+            if let Ok(_pong) = self
+                .transport
+                .call::<_, wire::Pong>(routes::PING, &())
+                .await
+            {
                 return Ok(());
             }
             if Instant::now() >= deadline {
-                return Err(RpcError::Transport("ai-worker did not become ready in 30s".into()));
+                return Err(RpcError::Transport(
+                    "ai-worker did not become ready in 30s".into(),
+                ));
             }
             tokio::time::sleep(delay).await;
             delay = (delay * 2).min(Duration::from_secs(1));
@@ -235,7 +242,9 @@ impl Supervisor {
         let weak = Arc::downgrade(self);
         let idle = Duration::from_secs(u64::from(self.cfg.idle_secs));
         tokio::spawn(async move {
-            let tick = Duration::from_secs(10).min(idle / 3).max(Duration::from_secs(1));
+            let tick = Duration::from_secs(10)
+                .min(idle / 3)
+                .max(Duration::from_secs(1));
             loop {
                 tokio::time::sleep(tick).await;
                 let Some(this) = weak.upgrade() else { break };
@@ -249,8 +258,12 @@ impl Supervisor {
                     continue;
                 }
                 drop(st);
-                tracing::info!("ai-worker idle for {}s, sending shutdown", idle_for.as_secs());
-                let _: RpcResult<wire::ShutdownResponse> = this.transport.call(routes::SHUTDOWN, &()).await;
+                tracing::info!(
+                    "ai-worker idle for {}s, sending shutdown",
+                    idle_for.as_secs()
+                );
+                let _: RpcResult<wire::ShutdownResponse> =
+                    this.transport.call(routes::SHUTDOWN, &()).await;
                 // Reap the child.
                 st = this.state.lock().await;
                 if let Some(mut child) = st.child.take() {

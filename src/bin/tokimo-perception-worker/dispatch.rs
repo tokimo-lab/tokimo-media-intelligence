@@ -78,7 +78,9 @@ async fn unary_inner(ai: &Arc<AiService>, route: &str, req_bytes: &[u8]) -> RpcR
             };
             encode::<RpcResult<wire::WorkerInfo>>(&Ok(info))
         }
-        routes::STATUS => encode::<RpcResult<wire::AiStatus>>(&Ok(convert::status_to_wire(ai.status()))),
+        routes::STATUS => {
+            encode::<RpcResult<wire::AiStatus>>(&Ok(convert::status_to_wire(ai.status())))
+        }
         routes::LIST_OCR_MODELS => {
             let list: Vec<wire::OcrModelInfo> = ai
                 .ocr_available_models()
@@ -160,19 +162,28 @@ async fn unary_inner(ai: &Arc<AiService>, route: &str, req_bytes: &[u8]) -> RpcR
         routes::STT_TRANSCRIBE => {
             let req: wire::SttTranscribeRequest = decode(req_bytes)?;
             let text = ai.transcribe_audio(&req.wav).await.map_err(map_err)?;
-            encode::<RpcResult<wire::SttTranscribeResponse>>(&Ok(wire::SttTranscribeResponse { text }))
+            encode::<RpcResult<wire::SttTranscribeResponse>>(&Ok(wire::SttTranscribeResponse {
+                text,
+            }))
         }
         routes::STT_TRANSCRIBE_PCM => {
             let req: wire::SttTranscribePcmRequest = decode(req_bytes)?;
-            let text = ai.transcribe_pcm(req.samples, req.sample_rate).await.map_err(map_err)?;
-            encode::<RpcResult<wire::SttTranscribeResponse>>(&Ok(wire::SttTranscribeResponse { text }))
+            let text = ai
+                .transcribe_pcm(req.samples, req.sample_rate)
+                .await
+                .map_err(map_err)?;
+            encode::<RpcResult<wire::SttTranscribeResponse>>(&Ok(wire::SttTranscribeResponse {
+                text,
+            }))
         }
         routes::SHUTDOWN => {
             // Caller handles the actual exit; we just ack.
             encode::<RpcResult<wire::ShutdownResponse>>(&Ok(wire::ShutdownResponse { ok: true }))
         }
         routes::CATALOG => {
-            let req: wire::CatalogRequest = decode(req_bytes).unwrap_or(wire::CatalogRequest { languages: Vec::new() });
+            let req: wire::CatalogRequest = decode(req_bytes).unwrap_or(wire::CatalogRequest {
+                languages: Vec::new(),
+            });
             let cat = catalog::build_catalog(ai, &req).await;
             encode::<RpcResult<wire::ModelCatalog>>(&Ok(cat))
         }
@@ -182,7 +193,10 @@ async fn unary_inner(ai: &Arc<AiService>, route: &str, req_bytes: &[u8]) -> RpcR
                 let url = ai.sidecar().ensure_running().await.map_err(map_err)?;
                 let client = reqwest::Client::new();
                 let _ = client
-                    .post(format!("{}/models/{slug}/unload", url.trim_end_matches('/')))
+                    .post(format!(
+                        "{}/models/{slug}/unload",
+                        url.trim_end_matches('/')
+                    ))
                     .timeout(std::time::Duration::from_secs(30))
                     .send()
                     .await;
@@ -223,24 +237,29 @@ async fn server_stream_inner(
             let req: wire::EnsureCategoryRequest = decode(req_bytes)?;
             let tx_clone = tx.clone();
             // ProgressFn is a boxed async closure — see tokimo-perception::models::ProgressFn
-            let progress: tokimo_perception::models::ProgressFn = Box::new(move |file, status, pct, dl, total| {
-                let frame = wire::ProgressFrame::Progress {
-                    file_name: file.to_string(),
-                    status: status.to_string(),
-                    percent: u32::from(pct),
-                    downloaded_bytes: dl,
-                    total_bytes: total,
-                };
-                // Non-blocking: drop progress updates if channel is full/closed.
-                let _ = tx_clone.try_send(Ok(frame));
-            });
+            let progress: tokimo_perception::models::ProgressFn =
+                Box::new(move |file, status, pct, dl, total| {
+                    let frame = wire::ProgressFrame::Progress {
+                        file_name: file.to_string(),
+                        status: status.to_string(),
+                        percent: u32::from(pct),
+                        downloaded_bytes: dl,
+                        total_bytes: total,
+                    };
+                    // Non-blocking: drop progress updates if channel is full/closed.
+                    let _ = tx_clone.try_send(Ok(frame));
+                });
             match req.category {
                 Some(c) => {
                     let cat = convert::category_from_wire(c);
-                    ai.ensure_category_with_progress(cat, progress).await.map_err(map_err)?;
+                    ai.ensure_category_with_progress(cat, progress)
+                        .await
+                        .map_err(map_err)?;
                 }
                 None => {
-                    ai.ensure_models_with_progress(progress).await.map_err(map_err)?;
+                    ai.ensure_models_with_progress(progress)
+                        .await
+                        .map_err(map_err)?;
                 }
             }
             let _ = tx.send(Ok(wire::ProgressFrame::Done)).await;
@@ -260,7 +279,9 @@ async fn server_stream_inner(
                 };
                 let _ = tx_clone.try_send(Ok(frame));
             };
-            ai.download_stt_model(&req.model_id, progress).await.map_err(map_err)?;
+            ai.download_stt_model(&req.model_id, progress)
+                .await
+                .map_err(map_err)?;
             let _ = tx.send(Ok(wire::ProgressFrame::Done)).await;
             Ok(())
         }
@@ -304,14 +325,20 @@ async fn server_stream_inner(
                     .map_err(map_err)?;
                 }
                 catalog::ModelRoute::Clip => {
-                    ai.ensure_category_with_progress(tokimo_perception::models::ModelCategory::Clip, progress_native)
-                        .await
-                        .map_err(map_err)?;
+                    ai.ensure_category_with_progress(
+                        tokimo_perception::models::ModelCategory::Clip,
+                        progress_native,
+                    )
+                    .await
+                    .map_err(map_err)?;
                 }
                 catalog::ModelRoute::Face => {
-                    ai.ensure_category_with_progress(tokimo_perception::models::ModelCategory::Face, progress_native)
-                        .await
-                        .map_err(map_err)?;
+                    ai.ensure_category_with_progress(
+                        tokimo_perception::models::ModelCategory::Face,
+                        progress_native,
+                    )
+                    .await
+                    .map_err(map_err)?;
                 }
                 catalog::ModelRoute::Stt(slug) => {
                     let tx_stt = tx.clone();
@@ -326,7 +353,9 @@ async fn server_stream_inner(
                         };
                         let _ = tx_stt.try_send(Ok(frame));
                     };
-                    ai.download_stt_model(&slug, progress_stt).await.map_err(map_err)?;
+                    ai.download_stt_model(&slug, progress_stt)
+                        .await
+                        .map_err(map_err)?;
                 }
                 catalog::ModelRoute::Sidecar(slug) => {
                     tracing::debug!(%model_id, %slug, "worker: entering run_sidecar_download");
@@ -334,13 +363,17 @@ async fn server_stream_inner(
                     tracing::debug!(%model_id, %slug, "worker: run_sidecar_download returned Ok");
                 }
                 catalog::ModelRoute::Unknown => {
-                    return Err(RpcError::BadRequest(format!("unknown model id: {model_id}")));
+                    return Err(RpcError::BadRequest(format!(
+                        "unknown model id: {model_id}"
+                    )));
                 }
             }
             let _ = tx.send(Ok(wire::ProgressFrame::Done)).await;
             Ok(())
         }
-        other => Err(RpcError::NotFound(format!("stream route not found: {other}"))),
+        other => Err(RpcError::NotFound(format!(
+            "stream route not found: {other}"
+        ))),
     }
 }
 
@@ -386,7 +419,9 @@ async fn run_sidecar_download(
     let deadline = std::time::Instant::now() + std::time::Duration::from_mins(30);
     loop {
         if std::time::Instant::now() > deadline {
-            return Err(RpcError::Internal("sidecar download timed out after 30 minutes".into()));
+            return Err(RpcError::Internal(
+                "sidecar download timed out after 30 minutes".into(),
+            ));
         }
         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
 
@@ -409,7 +444,11 @@ async fn run_sidecar_download(
         else {
             continue;
         };
-        let status = model.get("status").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let status = model
+            .get("status")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
         let (percent, downloaded, total) = model.get("progress").map_or((0, 0, 0), |p| {
             let pct = p
                 .get("percent")
@@ -420,7 +459,10 @@ async fn run_sidecar_download(
                 .get("downloaded_bytes")
                 .and_then(serde_json::Value::as_u64)
                 .unwrap_or(0);
-            let tot = p.get("total_bytes").and_then(serde_json::Value::as_u64).unwrap_or(0);
+            let tot = p
+                .get("total_bytes")
+                .and_then(serde_json::Value::as_u64)
+                .unwrap_or(0);
             (pct, dl, tot)
         });
 

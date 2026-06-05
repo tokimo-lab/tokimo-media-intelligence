@@ -72,10 +72,10 @@ impl AiWorkerClient {
     pub fn from_settings(settings: &AiWorkerSettings, data_local_path: &Path) -> Arc<Self> {
         let ai_models_dir = data_local_path.join("perception");
 
-        let socket_path = settings
-            .socket_path
-            .as_deref()
-            .map_or_else(|| data_local_path.join("ai-worker.sock"), std::path::PathBuf::from);
+        let socket_path = settings.socket_path.as_deref().map_or_else(
+            || data_local_path.join("ai-worker.sock"),
+            std::path::PathBuf::from,
+        );
 
         let worker_binary = resolve_worker_binary(settings.worker_binary.as_deref());
 
@@ -88,7 +88,9 @@ impl AiWorkerClient {
                 let t = HttpTransport::new(url).expect("build HttpTransport");
                 Arc::new(AnyTransport::Http(t))
             }
-            AiWorkerMode::Auto => Arc::new(AnyTransport::Uds(UdsTransport::new(socket_path.clone()))),
+            AiWorkerMode::Auto => {
+                Arc::new(AnyTransport::Uds(UdsTransport::new(socket_path.clone())))
+            }
         };
 
         let client = match settings.mode {
@@ -266,22 +268,39 @@ impl AiWorkerClient {
 
     // ---------------- CLIP ----------------
 
-    pub async fn clip_image(&self, image: Vec<u8>, request_id: Option<String>) -> ClientResult<Vec<f32>> {
-        self.call::<_, Vec<f32>>(routes::CLIP_IMAGE, &wire::ClipImageRequest { image, request_id })
-            .await
-            .map_err(rpc_to_string)
+    pub async fn clip_image(
+        &self,
+        image: Vec<u8>,
+        request_id: Option<String>,
+    ) -> ClientResult<Vec<f32>> {
+        self.call::<_, Vec<f32>>(
+            routes::CLIP_IMAGE,
+            &wire::ClipImageRequest { image, request_id },
+        )
+        .await
+        .map_err(rpc_to_string)
     }
 
-    pub async fn clip_text(&self, text: String, request_id: Option<String>) -> ClientResult<Vec<f32>> {
-        self.call::<_, Vec<f32>>(routes::CLIP_TEXT, &wire::ClipTextRequest { text, request_id })
-            .await
-            .map_err(rpc_to_string)
+    pub async fn clip_text(
+        &self,
+        text: String,
+        request_id: Option<String>,
+    ) -> ClientResult<Vec<f32>> {
+        self.call::<_, Vec<f32>>(
+            routes::CLIP_TEXT,
+            &wire::ClipTextRequest { text, request_id },
+        )
+        .await
+        .map_err(rpc_to_string)
     }
 
     pub async fn clip_classify(&self, vector: Vec<f32>) -> ClientResult<Vec<wire::TagResult>> {
-        self.call::<_, Vec<wire::TagResult>>(routes::CLIP_CLASSIFY, &wire::ClipClassifyRequest { vector })
-            .await
-            .map_err(rpc_to_string)
+        self.call::<_, Vec<wire::TagResult>>(
+            routes::CLIP_CLASSIFY,
+            &wire::ClipClassifyRequest { vector },
+        )
+        .await
+        .map_err(rpc_to_string)
     }
 
     // ---------------- Face ----------------
@@ -291,9 +310,12 @@ impl AiWorkerClient {
         image: Vec<u8>,
         request_id: Option<String>,
     ) -> ClientResult<Vec<wire::FaceDetection>> {
-        self.call::<_, Vec<wire::FaceDetection>>(routes::FACE_DETECT, &wire::FaceRequest { image, request_id })
-            .await
-            .map_err(rpc_to_string)
+        self.call::<_, Vec<wire::FaceDetection>>(
+            routes::FACE_DETECT,
+            &wire::FaceRequest { image, request_id },
+        )
+        .await
+        .map_err(rpc_to_string)
     }
 
     // ---------------- Cancel ----------------
@@ -329,11 +351,18 @@ impl AiWorkerClient {
         Ok(res.text)
     }
 
-    pub async fn transcribe_pcm(&self, samples: Vec<f32>, sample_rate: i32) -> ClientResult<String> {
+    pub async fn transcribe_pcm(
+        &self,
+        samples: Vec<f32>,
+        sample_rate: i32,
+    ) -> ClientResult<String> {
         let res: wire::SttTranscribeResponse = self
             .call(
                 routes::STT_TRANSCRIBE_PCM,
-                &wire::SttTranscribePcmRequest { samples, sample_rate },
+                &wire::SttTranscribePcmRequest {
+                    samples,
+                    sample_rate,
+                },
             )
             .await
             .map_err(rpc_to_string)?;
@@ -368,7 +397,10 @@ impl AiWorkerClient {
         self.ensure_up().await.map_err(rpc_to_string)?;
         self.mark_activity();
         self.transport
-            .call_stream::<_, wire::ProgressFrame>(routes::ENSURE_CATEGORY, &wire::EnsureCategoryRequest { category })
+            .call_stream::<_, wire::ProgressFrame>(
+                routes::ENSURE_CATEGORY,
+                &wire::EnsureCategoryRequest { category },
+            )
             .await
             .map_err(rpc_to_string)
     }
@@ -380,7 +412,10 @@ impl AiWorkerClient {
         self.ensure_up().await.map_err(rpc_to_string)?;
         self.mark_activity();
         self.transport
-            .call_stream::<_, wire::ProgressFrame>(routes::DOWNLOAD_STT, &wire::DownloadSttRequest { model_id })
+            .call_stream::<_, wire::ProgressFrame>(
+                routes::DOWNLOAD_STT,
+                &wire::DownloadSttRequest { model_id },
+            )
             .await
             .map_err(rpc_to_string)
     }
@@ -404,7 +439,10 @@ impl AiWorkerClient {
         self.ensure_up().await.map_err(rpc_to_string)?;
         self.mark_activity();
         self.transport
-            .call_stream::<_, wire::ProgressFrame>(routes::MODEL_DOWNLOAD, &wire::ModelActionRequest { model_id })
+            .call_stream::<_, wire::ProgressFrame>(
+                routes::MODEL_DOWNLOAD,
+                &wire::ModelActionRequest { model_id },
+            )
             .await
             .map_err(rpc_to_string)
     }
@@ -423,7 +461,8 @@ impl AiWorkerClient {
 
     /// Ask the worker to shut down gracefully. Safe to call even if not up.
     pub async fn shutdown(&self) -> ClientResult<()> {
-        let res: RpcResult<wire::ShutdownResponse> = self.transport.call(routes::SHUTDOWN, &()).await;
+        let res: RpcResult<wire::ShutdownResponse> =
+            self.transport.call(routes::SHUTDOWN, &()).await;
         match res {
             Ok(_) | Err(RpcError::Transport(_)) => Ok(()),
             Err(e) => Err(e.to_string()),

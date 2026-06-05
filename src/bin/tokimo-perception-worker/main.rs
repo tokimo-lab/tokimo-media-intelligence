@@ -2,7 +2,16 @@
 //! server's address space, so AI model memory can be reclaimed physically by
 //! exiting the worker on idle.
 
-#![allow(clippy::match_same_arms)]
+#![allow(
+    clippy::match_same_arms,
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_wrap,
+    clippy::needless_pass_by_value,
+    clippy::too_many_lines,
+    clippy::manual_filter
+)]
 
 mod catalog;
 mod convert;

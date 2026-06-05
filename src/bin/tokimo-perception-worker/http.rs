@@ -37,12 +37,18 @@ pub fn router(ai: Arc<AiService>, sig: mpsc::Sender<WorkerSignal>) -> Router {
         .with_state(st)
 }
 
-async fn handle_unary_or_stream(State(st): State<HttpState>, AxPath(route): AxPath<String>, body: Bytes) -> Response {
+async fn handle_unary_or_stream(
+    State(st): State<HttpState>,
+    AxPath(route): AxPath<String>,
+    body: Bytes,
+) -> Response {
     let full_route = format!("/v1/{route}");
     let _ = st.sig.send(WorkerSignal::Activity).await;
 
     if full_route == routes::ENSURE_CATEGORY {
-        let (tx, rx) = mpsc::channel::<tokimo_perception::worker::protocol::RpcResult<wire::ProgressFrame>>(32);
+        let (tx, rx) = mpsc::channel::<
+            tokimo_perception::worker::protocol::RpcResult<wire::ProgressFrame>,
+        >(32);
         dispatch::dispatch_server_stream(Arc::clone(&st.ai), &full_route, &body, tx);
         // Convert mpsc<frame> into a length-prefixed byte stream.
         let stream = async_stream::stream! {

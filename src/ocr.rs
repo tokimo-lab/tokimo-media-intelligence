@@ -62,7 +62,11 @@ impl OcrService {
         Self::new_with_options(models_dir, variant, DetectionMode::Components, None)
     }
 
-    pub fn new_with_mode(models_dir: &str, variant: PaddleOcrVariant, mode: DetectionMode) -> Result<Self, String> {
+    pub fn new_with_mode(
+        models_dir: &str,
+        variant: PaddleOcrVariant,
+        mode: DetectionMode,
+    ) -> Result<Self, String> {
         Self::new_with_options(models_dir, variant, mode, None)
     }
 
@@ -135,7 +139,8 @@ impl OcrService {
                     if cropped.width() < 2 || cropped.height() < 2 {
                         continue;
                     }
-                    let (rotated, was_flipped) = self.detector.classify_and_rotate(&cropped).await?;
+                    let (rotated, was_flipped) =
+                        self.detector.classify_and_rotate(&cropped).await?;
                     if let Some(tensor) = preprocess_for_rec(&rotated) {
                         prepared.push(PreparedCrop {
                             tensor,
@@ -153,7 +158,8 @@ impl OcrService {
                     if cropped.width() < 2 || cropped.height() < 2 {
                         continue;
                     }
-                    let (rotated, was_flipped) = self.detector.classify_and_rotate(&cropped).await?;
+                    let (rotated, was_flipped) =
+                        self.detector.classify_and_rotate(&cropped).await?;
                     let mut angle_deg = rbox.angle.to_degrees();
                     if was_flipped {
                         angle_deg += 180.0;
@@ -184,7 +190,11 @@ impl OcrService {
         // All crops are padded to max_w with zeros (same as PaddleOCR's official batch impl).
         // ORT's per-call overhead outweighs the padding cost; one call is faster than N buckets.
         let n = prepared.len();
-        let max_w = prepared.iter().map(|p| p.tensor.shape()[3]).max().unwrap_or(1);
+        let max_w = prepared
+            .iter()
+            .map(|p| p.tensor.shape()[3])
+            .max()
+            .unwrap_or(1);
 
         let mut batch = Array4::<f32>::zeros((n, 3, 48, max_w));
         for (i, p) in prepared.iter().enumerate() {
@@ -195,7 +205,8 @@ impl OcrService {
         }
 
         let batch_tensor = Tensor::from_array(batch).map_err(|e| format!("Batch tensor: {e}"))?;
-        let options = Arc::new(ort::session::RunOptions::new().map_err(|e| format!("RunOptions: {e}"))?);
+        let options =
+            Arc::new(ort::session::RunOptions::new().map_err(|e| format!("RunOptions: {e}"))?);
         // Bail early if cancel arrived before this session started.
         if crate::cancel::CANCEL_ID
             .try_with(Clone::clone)
@@ -227,7 +238,13 @@ impl OcrService {
             if shape.len() < 2 {
                 continue;
             }
-            if let Some(mut item) = ctc_decode(item_view.view(), shape[0], shape[1], &self.char_dict, &prep.bbox) {
+            if let Some(mut item) = ctc_decode(
+                item_view.view(),
+                shape[0],
+                shape[1],
+                &self.char_dict,
+                &prep.bbox,
+            ) {
                 item.angle = prep.angle_deg;
                 item.corners = prep.corners;
                 results.push(item);
@@ -240,18 +257,27 @@ impl OcrService {
 
     /// Kept for possible future use (single-crop path).
     #[allow(dead_code)]
-    async fn recognize_text(&self, img: &DynamicImage, bbox: &TextBox) -> Result<Option<OcrItem>, String> {
+    async fn recognize_text(
+        &self,
+        img: &DynamicImage,
+        bbox: &TextBox,
+    ) -> Result<Option<OcrItem>, String> {
         self.recognize_text_ctc(img, bbox).await
     }
 
     #[allow(dead_code)]
-    async fn recognize_text_ctc(&self, img: &DynamicImage, bbox: &TextBox) -> Result<Option<OcrItem>, String> {
+    async fn recognize_text_ctc(
+        &self,
+        img: &DynamicImage,
+        bbox: &TextBox,
+    ) -> Result<Option<OcrItem>, String> {
         let Some(tensor) = preprocess_for_rec(img) else {
             return Ok(None);
         };
 
         let input_tensor = Tensor::from_array(tensor).map_err(|e| format!("Create tensor: {e}"))?;
-        let options = Arc::new(ort::session::RunOptions::new().map_err(|e| format!("RunOptions: {e}"))?);
+        let options =
+            Arc::new(ort::session::RunOptions::new().map_err(|e| format!("RunOptions: {e}"))?);
         // Bail early if cancel arrived before this session started.
         if crate::cancel::CANCEL_ID
             .try_with(Clone::clone)
@@ -316,7 +342,8 @@ fn preprocess_for_rec(img: &DynamicImage) -> Option<Array4<f32>> {
     let img = {
         let gray = img.to_luma8();
         let (gw, gh) = gray.dimensions();
-        let avg_lum: f64 = gray.pixels().map(|p| f64::from(p.0[0])).sum::<f64>() / (f64::from(gw) * f64::from(gh));
+        let avg_lum: f64 =
+            gray.pixels().map(|p| f64::from(p.0[0])).sum::<f64>() / (f64::from(gw) * f64::from(gh));
         if avg_lum < 127.0 {
             let mut g = gray;
             image::imageops::invert(&mut g);
@@ -390,11 +417,20 @@ fn ctc_decode(
         return None;
     }
 
-    let avg_score = if count > 0 { total_score / count as f32 } else { 0.0 };
+    let avg_score = if count > 0 {
+        total_score / count as f32
+    } else {
+        0.0
+    };
     let step_w = bbox.w / seq_len as f32;
     let char_positions = char_timesteps
         .iter()
-        .map(|&(start_t, end_t)| (start_t as f32 * step_w, (end_t - start_t + 1) as f32 * step_w))
+        .map(|&(start_t, end_t)| {
+            (
+                start_t as f32 * step_w,
+                (end_t - start_t + 1) as f32 * step_w,
+            )
+        })
         .collect();
 
     Some(OcrItem {

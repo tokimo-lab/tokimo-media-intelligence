@@ -1,3 +1,13 @@
+#![allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_wrap,
+    clippy::needless_pass_by_value,
+    clippy::too_many_lines,
+    clippy::manual_filter
+)]
+
 //! Unified AI service: OCR + CLIP + Face recognition + STT via ONNX Runtime / sherpa-onnx.
 //!
 //! This crate is used as a library by `tokimo-server` — no HTTP server.
@@ -97,7 +107,10 @@ pub fn build_session(path: impl AsRef<std::path::Path>) -> ort::Result<ort::sess
             .commit_from_file(path);
     }
 
-    tracing::info!("[ort] Building session for {filename} with {} EP", ep.name());
+    tracing::info!(
+        "[ort] Building session for {filename} with {} EP",
+        ep.name()
+    );
 
     // macOS: CoreML
     #[cfg(target_os = "macos")]
@@ -133,7 +146,9 @@ pub fn build_session(path: impl AsRef<std::path::Path>) -> ort::Result<ort::sess
                 return Ok(s);
             }
             Err(e) => {
-                tracing::warn!("[ort] DirectML EP failed for {filename}: {e} — falling back to CPU");
+                tracing::warn!(
+                    "[ort] DirectML EP failed for {filename}: {e} — falling back to CPU"
+                );
                 return Session::builder()?
                     .with_intra_threads(ort_intra_op_threads())?
                     .commit_from_file(path);
@@ -224,7 +239,10 @@ fn lib_available(lib: &str) -> bool {
             .ok()
             .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
             .unwrap_or_default();
-        ldconfig.contains(lib) || lib_dirs.iter().any(|d| std::path::Path::new(d).join(lib).exists())
+        ldconfig.contains(lib)
+            || lib_dirs
+                .iter()
+                .any(|d| std::path::Path::new(d).join(lib).exists())
     }
     #[cfg(target_os = "macos")]
     {
@@ -234,7 +252,9 @@ fn lib_available(lib: &str) -> bool {
             "/opt/homebrew/lib",
             "/opt/homebrew/opt/onnxruntime/lib",
         ];
-        lib_dirs.iter().any(|d| std::path::Path::new(d).join(lib).exists())
+        lib_dirs
+            .iter()
+            .any(|d| std::path::Path::new(d).join(lib).exists())
     }
 }
 
@@ -337,7 +357,12 @@ fn detect_best_ep() -> (AccelProvider, String) {
     #[cfg(target_os = "windows")]
     match detect_directml() {
         Ok(()) => return (AccelProvider::DirectML, "DirectML".into()),
-        Err(r) => return (AccelProvider::Cpu, format!("CPU (DirectML unavailable: {r})")),
+        Err(r) => {
+            return (
+                AccelProvider::Cpu,
+                format!("CPU (DirectML unavailable: {r})"),
+            );
+        }
     }
 
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
@@ -350,7 +375,11 @@ fn detect_best_ep() -> (AccelProvider, String) {
         if rocm.is_ok() {
             return (AccelProvider::ROCm, "ROCm".into());
         }
-        let reason = format!("CPU (CUDA: {}; ROCm: {})", cuda.unwrap_err(), rocm.unwrap_err());
+        let reason = format!(
+            "CPU (CUDA: {}; ROCm: {})",
+            cuda.unwrap_err(),
+            rocm.unwrap_err()
+        );
         return (AccelProvider::Cpu, reason);
     }
 
@@ -425,8 +454,9 @@ impl AiService {
         let _ = ACTIVE_EP.set(ep);
 
         let applied = {
-            let data_local =
-                std::path::PathBuf::from(std::env::var("DATA_LOCAL_PATH").unwrap_or_else(|_| "./.data".to_string()));
+            let data_local = std::path::PathBuf::from(
+                std::env::var("DATA_LOCAL_PATH").unwrap_or_else(|_| "./.data".to_string()),
+            );
             match worker::client::resolve_ort_dylib_path(&data_local) {
                 Some(dylib_path) => ort::init_from(dylib_path).map_or_else(
                     |e| {
@@ -443,7 +473,10 @@ impl AiService {
         }
 
         Arc::new(Self {
-            sidecar: sidecar::SidecarManager::new(python_sidecar_dir(&config), config.models_dir.clone()),
+            sidecar: sidecar::SidecarManager::new(
+                python_sidecar_dir(&config),
+                config.models_dir.clone(),
+            ),
             config,
             ocr_manager: OnceCell::new(),
             clip: RwLock::new(None),
@@ -596,7 +629,10 @@ impl AiService {
 
     /// Download any missing models with progress callback.
     /// Callback: (`file_name`, status, percent, `downloaded_bytes`, `total_bytes`)
-    pub async fn ensure_models_with_progress(&self, on_progress: models::ProgressFn) -> Result<(), String> {
+    pub async fn ensure_models_with_progress(
+        &self,
+        on_progress: models::ProgressFn,
+    ) -> Result<(), String> {
         models::ensure_models_with_progress(&self.config, Some(on_progress)).await
     }
 
@@ -691,7 +727,11 @@ impl AiService {
                 ))
             })
             .await?;
-        cancel::with_cancel_id(cancel_id, manager.ocr_hybrid(det_model, vlm_model, image_bytes)).await
+        cancel::with_cancel_id(
+            cancel_id,
+            manager.ocr_hybrid(det_model, vlm_model, image_bytes),
+        )
+        .await
     }
 
     /// List available OCR models and their status.
@@ -705,11 +745,16 @@ impl AiService {
     // ── CLIP ─────────────────────────────────────────────────────────────
 
     /// Embed an image → 512-dim CLIP vector.
-    pub async fn clip_image(&self, image_bytes: &[u8], cancel_id: Option<&str>) -> Result<Vec<f32>, String> {
+    pub async fn clip_image(
+        &self,
+        image_bytes: &[u8],
+        cancel_id: Option<&str>,
+    ) -> Result<Vec<f32>, String> {
         if !self.config.enable_clip {
             return Err("CLIP is disabled".into());
         }
-        let img = image::load_from_memory(image_bytes).map_err(|e| format!("Invalid image: {e}"))?;
+        let img =
+            image::load_from_memory(image_bytes).map_err(|e| format!("Invalid image: {e}"))?;
         let svc = self.get_or_init_clip().await?;
         cancel::with_cancel_id(cancel_id, svc.embed_image(&img)).await
     }
@@ -724,7 +769,10 @@ impl AiService {
     }
 
     /// Classify an image vector against the built-in taxonomy using CLIP zero-shot.
-    pub async fn clip_classify(&self, image_vec: &[f32]) -> Result<Vec<clip_categories::TagResult>, String> {
+    pub async fn clip_classify(
+        &self,
+        image_vec: &[f32],
+    ) -> Result<Vec<clip_categories::TagResult>, String> {
         if !self.config.enable_clip {
             return Err("CLIP is disabled".into());
         }
@@ -765,7 +813,8 @@ impl AiService {
         if !self.config.enable_face {
             return Err("Face recognition is disabled".into());
         }
-        let img = image::load_from_memory(image_bytes).map_err(|e| format!("Invalid image: {e}"))?;
+        let img =
+            image::load_from_memory(image_bytes).map_err(|e| format!("Invalid image: {e}"))?;
         let svc = self.get_or_init_face().await?;
         cancel::with_cancel_id(cancel_id, svc.detect_faces(&img)).await
     }
@@ -807,7 +856,11 @@ impl AiService {
     }
 
     /// Transcribe raw f32 PCM samples using `SenseVoice` (for streaming refinement).
-    pub async fn transcribe_pcm(&self, samples: Vec<f32>, sample_rate: i32) -> Result<String, String> {
+    pub async fn transcribe_pcm(
+        &self,
+        samples: Vec<f32>,
+        sample_rate: i32,
+    ) -> Result<String, String> {
         if !self.config.enable_stt {
             return Err("STT is disabled".into());
         }
@@ -830,9 +883,10 @@ impl AiService {
             return Ok(svc.clone());
         }
         let dir = self.config.models_dir.clone();
-        let svc = tokio::task::spawn_blocking(move || stt::SttService::new(&dir, stt::DEFAULT_MODEL))
-            .await
-            .map_err(|e| format!("STT load panicked: {e}"))??;
+        let svc =
+            tokio::task::spawn_blocking(move || stt::SttService::new(&dir, stt::DEFAULT_MODEL))
+                .await
+                .map_err(|e| format!("STT load panicked: {e}"))??;
         *guard = Some(svc.clone());
         Ok(svc)
     }
@@ -861,7 +915,8 @@ impl AiService {
     }
 
     async fn get_or_init_streaming_stt(&self) -> Result<stt::StreamingSttService, String> {
-        self.streaming_stt_last_use.store(epoch_secs(), Ordering::Relaxed);
+        self.streaming_stt_last_use
+            .store(epoch_secs(), Ordering::Relaxed);
         {
             let guard = self.streaming_stt.read().await;
             if let Some(svc) = guard.as_ref() {
@@ -901,7 +956,10 @@ impl AiService {
         let url = model.download_url();
         let archive_path = format!("{stt_dir}/_download_{}.tar.bz2", model.id());
 
-        tracing::info!("Downloading STT model: {} → {stt_dir}", model.display_name());
+        tracing::info!(
+            "Downloading STT model: {} → {stt_dir}",
+            model.display_name()
+        );
         on_progress("downloading", 0);
 
         // Streaming download with progress
@@ -925,7 +983,9 @@ impl AiService {
         use futures_util::StreamExt;
         while let Some(chunk) = stream.next().await {
             let chunk = chunk.map_err(|e| format!("Download stream error: {e}"))?;
-            file.write_all(&chunk).await.map_err(|e| format!("Write error: {e}"))?;
+            file.write_all(&chunk)
+                .await
+                .map_err(|e| format!("Write error: {e}"))?;
             downloaded += chunk.len() as u64;
 
             if total_size > 0 {
@@ -936,7 +996,9 @@ impl AiService {
                 }
             }
         }
-        file.flush().await.map_err(|e| format!("Flush error: {e}"))?;
+        file.flush()
+            .await
+            .map_err(|e| format!("Flush error: {e}"))?;
         drop(file);
 
         let size_mb = downloaded as f64 / (1024.0 * 1024.0);
@@ -963,7 +1025,10 @@ impl AiService {
         let _ = tokio::fs::remove_file(&archive_path).await;
 
         on_progress("completed", 100);
-        tracing::info!("STT model {} downloaded and extracted", model.display_name());
+        tracing::info!(
+            "STT model {} downloaded and extracted",
+            model.display_name()
+        );
         Ok(())
     }
 }

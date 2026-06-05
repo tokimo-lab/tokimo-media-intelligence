@@ -41,10 +41,12 @@ impl ClipService {
         }
 
         tracing::info!("Loading CLIP image model: {img_path}");
-        let img_session = crate::build_session(&img_path).map_err(|e| format!("Load CLIP img model: {e}"))?;
+        let img_session =
+            crate::build_session(&img_path).map_err(|e| format!("Load CLIP img model: {e}"))?;
 
         tracing::info!("Loading CLIP text model: {txt_path}");
-        let txt_session = crate::build_session(&txt_path).map_err(|e| format!("Load CLIP txt model: {e}"))?;
+        let txt_session =
+            crate::build_session(&txt_path).map_err(|e| format!("Load CLIP txt model: {e}"))?;
 
         let tokenizer = BertTokenizer::new();
 
@@ -69,7 +71,9 @@ impl ClipService {
             },
             Some(&cache_dir_clone),
         );
-        let txt_session = txt_session_std.into_inner().map_err(|e| format!("Unwrap: {e}"))?;
+        let txt_session = txt_session_std
+            .into_inner()
+            .map_err(|e| format!("Unwrap: {e}"))?;
 
         tracing::info!("CLIP service ready.");
 
@@ -85,7 +89,8 @@ impl ClipService {
     pub async fn embed_image(&self, img: &DynamicImage) -> Result<Vec<f32>, String> {
         let input = preprocess_image(img);
         let input_tensor = Tensor::from_array(input).map_err(|e| format!("Create tensor: {e}"))?;
-        let options = Arc::new(ort::session::RunOptions::new().map_err(|e| format!("RunOptions: {e}"))?);
+        let options =
+            Arc::new(ort::session::RunOptions::new().map_err(|e| format!("RunOptions: {e}"))?);
         // Bail early if cancel arrived before this session started.
         if crate::cancel::CANCEL_ID
             .try_with(Clone::clone)
@@ -119,7 +124,8 @@ impl ClipService {
         let token_ids = self.tokenizer.encode(text, CONTEXT_LENGTH);
         let input_tensor = Tensor::from_array(([1i64, CONTEXT_LENGTH as i64], token_ids))
             .map_err(|e| format!("Create tensor: {e}"))?;
-        let options = Arc::new(ort::session::RunOptions::new().map_err(|e| format!("RunOptions: {e}"))?);
+        let options =
+            Arc::new(ort::session::RunOptions::new().map_err(|e| format!("RunOptions: {e}"))?);
         // Bail early if cancel arrived before this session started.
         if crate::cancel::CANCEL_ID
             .try_with(Clone::clone)
@@ -151,7 +157,11 @@ impl ClipService {
     /// Classify image vector against the taxonomy using zero-shot CLIP.
     /// Cache is already warm from `new()`, so this is sync and fast.
     pub fn classify(&self, image_vec: &[f32]) -> Result<Vec<TagResult>, String> {
-        clip_categories::classify(image_vec, &|_| Err("cache miss".into()), Some(&self.cache_dir))
+        clip_categories::classify(
+            image_vec,
+            &|_| Err("cache miss".into()),
+            Some(&self.cache_dir),
+        )
     }
 }
 

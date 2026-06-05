@@ -496,8 +496,8 @@ pub static CATEGORIES: &[TagCategory] = &[
         name: "天气",
         icon: "🌤️",
         subs: &[
-            "晴天", "多云", "阴天", "下雨", "暴雨", "雨后", "雨滴", "水滴", "下雪", "雪景", "雪地", "雪花", "霜",
-            "大雾", "雾气", "薄雾", "闪电", "雷暴", "台风",
+            "晴天", "多云", "阴天", "下雨", "暴雨", "雨后", "雨滴", "水滴", "下雪", "雪景", "雪地",
+            "雪花", "霜", "大雾", "雾气", "薄雾", "闪电", "雷暴", "台风",
         ],
     },
     TagCategory {
@@ -1770,7 +1770,10 @@ pub fn classify(
         return Ok(vec![]);
     }
 
-    let logits: Vec<f32> = cat_scores.iter().map(|(_, _, sim)| sim * LOGIT_SCALE).collect();
+    let logits: Vec<f32> = cat_scores
+        .iter()
+        .map(|(_, _, sim)| sim * LOGIT_SCALE)
+        .collect();
     let max_logit = logits.iter().copied().fold(f32::NEG_INFINITY, f32::max);
     let exp_sum: f32 = logits.iter().map(|l| (l - max_logit).exp()).sum();
 
@@ -1794,7 +1797,11 @@ pub fn classify(
         })
         .collect();
 
-    results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+    results.sort_by(|a, b| {
+        b.score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     results.truncate(MAX_TAGS);
     Ok(results)
 }

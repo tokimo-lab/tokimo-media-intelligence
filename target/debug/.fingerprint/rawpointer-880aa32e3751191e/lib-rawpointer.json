@@ -1,0 +1,1 @@
+{"rustc":12552724960088552124,"features":"[]","declared_features":"[]","target":2998606345829117793,"profile":2241668132362809309,"path":1437660319365243764,"deps":[],"local":[{"CheckDepInfo":{"dep_info":"debug/.fingerprint/rawpointer-880aa32e3751191e/dep-lib-rawpointer","checksum":false}}],"rustflags":["-C","link-arg=-fuse-ld=mold"],"config":9396254390672932401,"compile_kind":0}

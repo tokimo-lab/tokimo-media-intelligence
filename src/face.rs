@@ -36,10 +36,12 @@ impl FaceService {
         }
 
         tracing::info!("Loading face detection model (SCRFD)...");
-        let det_session = crate::build_session(&det_path).map_err(|e| format!("Load face det model: {e}"))?;
+        let det_session =
+            crate::build_session(&det_path).map_err(|e| format!("Load face det model: {e}"))?;
 
         tracing::info!("Loading face recognition model (ArcFace)...");
-        let rec_session = crate::build_session(&rec_path).map_err(|e| format!("Load face rec model: {e}"))?;
+        let rec_session =
+            crate::build_session(&rec_path).map_err(|e| format!("Load face rec model: {e}"))?;
 
         tracing::info!("Face service ready.");
         Ok(Self {
@@ -98,7 +100,8 @@ impl FaceService {
         }
 
         let input_tensor = Tensor::from_array(tensor).map_err(|e| format!("Create tensor: {e}"))?;
-        let options = Arc::new(ort::session::RunOptions::new().map_err(|e| format!("RunOptions: {e}"))?);
+        let options =
+            Arc::new(ort::session::RunOptions::new().map_err(|e| format!("RunOptions: {e}"))?);
         // Bail early if cancel arrived before this session started.
         if crate::cancel::CANCEL_ID
             .try_with(Clone::clone)
@@ -125,7 +128,11 @@ impl FaceService {
     }
 
     /// Extract 512-dim `ArcFace` embedding from a cropped face.
-    async fn extract_embedding(&self, img: &DynamicImage, face: &RawFace) -> Result<Vec<f32>, String> {
+    async fn extract_embedding(
+        &self,
+        img: &DynamicImage,
+        face: &RawFace,
+    ) -> Result<Vec<f32>, String> {
         // Crop face region with some margin
         let margin = 10;
         let x = (face.x - margin).max(0) as u32;
@@ -156,7 +163,8 @@ impl FaceService {
         }
 
         let input_tensor = Tensor::from_array(tensor).map_err(|e| format!("Create tensor: {e}"))?;
-        let options = Arc::new(ort::session::RunOptions::new().map_err(|e| format!("RunOptions: {e}"))?);
+        let options =
+            Arc::new(ort::session::RunOptions::new().map_err(|e| format!("RunOptions: {e}"))?);
         // Bail early if cancel arrived before this session started.
         if crate::cancel::CANCEL_ID
             .try_with(Clone::clone)

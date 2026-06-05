@@ -19,7 +19,8 @@ pub struct AiConfig {
 
 impl Default for AiConfig {
     fn default() -> Self {
-        let data_local_path = std::env::var("DATA_LOCAL_PATH").unwrap_or_else(|_| "./.data".to_string());
+        let data_local_path =
+            std::env::var("DATA_LOCAL_PATH").unwrap_or_else(|_| "./.data".to_string());
         Self {
             models_dir: format!("{data_local_path}/perception"),
             enable_ocr: true,
