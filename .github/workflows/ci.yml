@@ -18,6 +18,51 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Ensure workspace root for standalone build
+        shell: bash
+        run: |
+          if ! grep -q '^\[workspace\]' Cargo.toml; then
+            cat >> Cargo.toml << 'TOKIMO_WORKSPACE'
+          [workspace]
+          members = ["."]
+          
+          [workspace.lints.rust]
+          unsafe_code     = "warn"
+          unused_must_use = "deny"
+          
+          [workspace.lints.clippy]
+          all      = { level = "warn", priority = -1 }
+          pedantic = "allow"
+          lint_groups_priority = "allow"
+          wildcard_imports        = "allow"
+          module_name_repetitions = "allow"
+          must_use_candidate      = "allow"
+          missing_errors_doc      = "allow"
+          missing_panics_doc      = "allow"
+          items_after_statements  = "allow"
+          struct_excessive_bools  = "allow"
+          similar_names           = "allow"
+          many_single_char_names  = "allow"
+          unnecessary_literal_bound = "allow"
+          doc_markdown            = "allow"
+          ref_option              = "allow"
+          fn_params_excessive_bools = "allow"
+          needless_pass_by_value  = "allow"
+          cast_possible_wrap      = "allow"
+          cast_possible_truncation = "allow"
+          cast_precision_loss     = "allow"
+          cast_sign_loss          = "allow"
+          cast_lossless           = "allow"
+          too_many_lines          = "allow"
+          map_unwrap_or           = "allow"
+          unused_async            = "allow"
+          redundant_closure_for_method_calls = "allow"
+          default_trait_access    = "allow"
+          return_self_not_must_use = "allow"
+          case_sensitive_file_extension_comparisons = "allow"
+          TOKIMO_WORKSPACE
+          fi
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -37,6 +82,51 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Ensure workspace root for standalone build
+        shell: bash
+        run: |
+          if ! grep -q '^\[workspace\]' Cargo.toml; then
+            cat >> Cargo.toml << 'TOKIMO_WORKSPACE'
+          [workspace]
+          members = ["."]
+          
+          [workspace.lints.rust]
+          unsafe_code     = "warn"
+          unused_must_use = "deny"
+          
+          [workspace.lints.clippy]
+          all      = { level = "warn", priority = -1 }
+          pedantic = "allow"
+          lint_groups_priority = "allow"
+          wildcard_imports        = "allow"
+          module_name_repetitions = "allow"
+          must_use_candidate      = "allow"
+          missing_errors_doc      = "allow"
+          missing_panics_doc      = "allow"
+          items_after_statements  = "allow"
+          struct_excessive_bools  = "allow"
+          similar_names           = "allow"
+          many_single_char_names  = "allow"
+          unnecessary_literal_bound = "allow"
+          doc_markdown            = "allow"
+          ref_option              = "allow"
+          fn_params_excessive_bools = "allow"
+          needless_pass_by_value  = "allow"
+          cast_possible_wrap      = "allow"
+          cast_possible_truncation = "allow"
+          cast_precision_loss     = "allow"
+          cast_sign_loss          = "allow"
+          cast_lossless           = "allow"
+          too_many_lines          = "allow"
+          map_unwrap_or           = "allow"
+          unused_async            = "allow"
+          redundant_closure_for_method_calls = "allow"
+          default_trait_access    = "allow"
+          return_self_not_must_use = "allow"
+          case_sensitive_file_extension_comparisons = "allow"
+          TOKIMO_WORKSPACE
+          fi
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
