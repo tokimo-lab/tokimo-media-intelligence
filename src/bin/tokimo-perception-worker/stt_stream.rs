@@ -61,8 +61,7 @@ pub async fn handle(
             loop {
                 match timeout(Duration::from_millis(40), drv_rx.recv()).await {
                     Ok(Some(DriverMsg::Audio(pcm))) => {
-                        let samples: Vec<f32> =
-                            pcm.iter().map(|&s| f32::from(s) / 32768.0).collect();
+                        let samples: Vec<f32> = pcm.iter().map(|&s| f32::from(s) / 32768.0).collect();
                         svc.feed_audio(&stream, &samples);
                     }
                     Ok(Some(DriverMsg::Reset)) => {
@@ -87,8 +86,7 @@ pub async fn handle(
                 if svc.is_endpoint(&stream) {
                     let final_text = std::mem::take(&mut last_partial);
                     if !final_text.is_empty() {
-                        write_frame(&mut w, &wire::SttServerFrame::Final { text: final_text })
-                            .await?;
+                        write_frame(&mut w, &wire::SttServerFrame::Final { text: final_text }).await?;
                     }
                     write_frame(&mut w, &wire::SttServerFrame::Endpoint).await?;
                     svc.reset(&stream);

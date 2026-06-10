@@ -96,19 +96,11 @@ impl OcrManager {
         Self::with_options(models_dir, sidecar, None)
     }
 
-    pub fn with_max_side(
-        models_dir: String,
-        sidecar: Arc<SidecarManager>,
-        det_max_side: Option<u32>,
-    ) -> Self {
+    pub fn with_max_side(models_dir: String, sidecar: Arc<SidecarManager>, det_max_side: Option<u32>) -> Self {
         Self::with_options(models_dir, sidecar, det_max_side)
     }
 
-    pub fn with_options(
-        models_dir: String,
-        sidecar: Arc<SidecarManager>,
-        det_max_side: Option<u32>,
-    ) -> Self {
+    pub fn with_options(models_dir: String, sidecar: Arc<SidecarManager>, det_max_side: Option<u32>) -> Self {
         let mut backends: HashMap<&'static str, BackendSlot> = HashMap::new();
         backends.insert(MODEL_PP_OCRV5_MOBILE, BackendSlot::new());
         backends.insert(MODEL_RAPID_OCR_RUST, BackendSlot::new());
@@ -234,8 +226,7 @@ impl OcrManager {
             .backends
             .get(model_name)
             .ok_or_else(|| format!("Unknown OCR model: {model_name}"))?;
-        slot.get_or_init(model_name, &self.models_dir, self.det_max_side)
-            .await
+        slot.get_or_init(model_name, &self.models_dir, self.det_max_side).await
     }
 }
 
@@ -295,11 +286,7 @@ struct SidecarOcrResponse {
 }
 
 /// Call the Python OCR sidecar via HTTP to run VLM-based OCR.
-async fn vlm_ocr_via_sidecar(
-    sidecar_url: &str,
-    model_name: &str,
-    image_bytes: &[u8],
-) -> Result<Vec<OcrItem>, String> {
+async fn vlm_ocr_via_sidecar(sidecar_url: &str, model_name: &str, image_bytes: &[u8]) -> Result<Vec<OcrItem>, String> {
     let b64 = base64::engine::general_purpose::STANDARD.encode(image_bytes);
     let body = serde_json::json!({
         "model": model_name,

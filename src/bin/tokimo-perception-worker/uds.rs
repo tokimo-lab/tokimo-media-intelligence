@@ -40,11 +40,7 @@ pub async fn serve(
     }
 }
 
-async fn handle_conn(
-    stream: UnixStream,
-    ai: Arc<AiService>,
-    sig: mpsc::Sender<WorkerSignal>,
-) -> Result<(), RpcError> {
+async fn handle_conn(stream: UnixStream, ai: Arc<AiService>, sig: mpsc::Sender<WorkerSignal>) -> Result<(), RpcError> {
     let (mut r, mut w) = stream.into_split();
     let (kind, route) = read_header(&mut r).await?;
     match kind.as_str() {
@@ -62,9 +58,7 @@ async fn handle_conn(
         }
         "SSTREAM" => {
             let req_bytes: Vec<u8> = read_frame_raw(&mut r).await?;
-            let (tx, mut rx) = mpsc::channel::<
-                tokimo_perception::worker::protocol::RpcResult<wire::ProgressFrame>,
-            >(32);
+            let (tx, mut rx) = mpsc::channel::<tokimo_perception::worker::protocol::RpcResult<wire::ProgressFrame>>(32);
             dispatch::dispatch_server_stream(Arc::clone(&ai), &route, &req_bytes, tx);
             while let Some(item) = rx.recv().await {
                 frame::write_frame(&mut w, &item).await?;
@@ -97,12 +91,8 @@ async fn read_frame_raw<R: tokio::io::AsyncRead + Unpin>(r: &mut R) -> Result<Ve
     Ok(buf)
 }
 
-async fn write_frame_raw<W: tokio::io::AsyncWrite + Unpin>(
-    w: &mut W,
-    bytes: &[u8],
-) -> Result<(), RpcError> {
-    let len =
-        u32::try_from(bytes.len()).map_err(|_| RpcError::BadRequest("frame too large".into()))?;
+async fn write_frame_raw<W: tokio::io::AsyncWrite + Unpin>(w: &mut W, bytes: &[u8]) -> Result<(), RpcError> {
+    let len = u32::try_from(bytes.len()).map_err(|_| RpcError::BadRequest("frame too large".into()))?;
     w.write_all(&len.to_be_bytes()).await?;
     w.write_all(bytes).await?;
     w.flush().await?;

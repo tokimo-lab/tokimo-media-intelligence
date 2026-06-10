@@ -66,11 +66,7 @@ impl OcrDetector {
         Self::with_max_side(models_dir, variant, DEFAULT_DET_MAX_SIDE)
     }
 
-    pub fn with_max_side(
-        models_dir: &str,
-        variant: PaddleOcrVariant,
-        det_max_side: u32,
-    ) -> Result<Self, String> {
+    pub fn with_max_side(models_dir: &str, variant: PaddleOcrVariant, det_max_side: u32) -> Result<Self, String> {
         let det_name = match variant {
             PaddleOcrVariant::Mobile => "PP-OCRv5_mobile_det.onnx",
             PaddleOcrVariant::Server => "PP-OCRv5_server_det.onnx",
@@ -115,8 +111,7 @@ impl OcrDetector {
         }
 
         let input_tensor = Tensor::from_array(tensor).map_err(|e| format!("Create tensor: {e}"))?;
-        let options =
-            Arc::new(ort::session::RunOptions::new().map_err(|e| format!("RunOptions: {e}"))?);
+        let options = Arc::new(ort::session::RunOptions::new().map_err(|e| format!("RunOptions: {e}"))?);
         // Bail early if cancel arrived before this session started.
         if crate::cancel::CANCEL_ID
             .try_with(Clone::clone)
@@ -168,10 +163,7 @@ impl OcrDetector {
 
     /// Run `DBNet` text detection with contour-based post-processing (RapidOCR-style).
     /// Returns rotated bounding boxes for better results on angled text.
-    pub async fn detect_with_contours(
-        &self,
-        img: &DynamicImage,
-    ) -> Result<Vec<RotatedBox>, String> {
+    pub async fn detect_with_contours(&self, img: &DynamicImage) -> Result<Vec<RotatedBox>, String> {
         let out = self.run_dbnet(img).await?;
         Ok(extract_rotated_boxes(
             &out.prob_data,
@@ -187,10 +179,7 @@ impl OcrDetector {
     /// Classify text orientation (0° or 180°) and rotate if needed.
     /// Returns `(image, was_rotated)` — `was_rotated` is true when the text
     /// was detected as upside-down and the image was flipped 180°.
-    pub async fn classify_and_rotate(
-        &self,
-        img: &DynamicImage,
-    ) -> Result<(DynamicImage, bool), String> {
+    pub async fn classify_and_rotate(&self, img: &DynamicImage) -> Result<(DynamicImage, bool), String> {
         let resized = img.resize_exact(192, 48, image::imageops::FilterType::CatmullRom);
         let rgb = resized.to_rgb8();
 
@@ -207,8 +196,7 @@ impl OcrDetector {
         }
 
         let input_tensor = Tensor::from_array(tensor).map_err(|e| format!("Create tensor: {e}"))?;
-        let options =
-            Arc::new(ort::session::RunOptions::new().map_err(|e| format!("RunOptions: {e}"))?);
+        let options = Arc::new(ort::session::RunOptions::new().map_err(|e| format!("RunOptions: {e}"))?);
         // Bail early if cancel arrived before this session started.
         if crate::cancel::CANCEL_ID
             .try_with(Clone::clone)
@@ -245,12 +233,8 @@ impl OcrDetector {
 /// Adds small padding to avoid clipping character edges.
 pub fn crop_text_region(img: &DynamicImage, bbox: &TextBox) -> DynamicImage {
     let pad = 3u32;
-    let x = (bbox.x as u32)
-        .saturating_sub(pad)
-        .min(img.width().saturating_sub(1));
-    let y = (bbox.y as u32)
-        .saturating_sub(pad)
-        .min(img.height().saturating_sub(1));
+    let x = (bbox.x as u32).saturating_sub(pad).min(img.width().saturating_sub(1));
+    let y = (bbox.y as u32).saturating_sub(pad).min(img.height().saturating_sub(1));
     let w = ((bbox.w as u32) + 2 * pad).min(img.width() - x).max(1);
     let h = ((bbox.h as u32) + 2 * pad).min(img.height() - y).max(1);
     img.crop_imm(x, y, w, h)
@@ -415,11 +399,7 @@ fn extract_boxes_from_prob_map(
         for x in 0..map_w {
             let idx = y * map_w + x;
             let val = prob_data.get(idx).copied().unwrap_or(0.0);
-            binary.put_pixel(
-                x as u32,
-                y as u32,
-                Luma([if val > threshold { 255 } else { 0 }]),
-            );
+            binary.put_pixel(x as u32, y as u32, Luma([if val > threshold { 255 } else { 0 }]));
         }
     }
 
@@ -585,11 +565,7 @@ fn extract_rotated_boxes(
         for x in 0..map_w {
             let idx = y * map_w + x;
             let val = prob_data.get(idx).copied().unwrap_or(0.0);
-            binary.put_pixel(
-                x as u32,
-                y as u32,
-                Luma([if val > threshold { 255 } else { 0 }]),
-            );
+            binary.put_pixel(x as u32, y as u32, Luma([if val > threshold { 255 } else { 0 }]));
         }
     }
 
@@ -693,10 +669,10 @@ fn extract_rotated_boxes(
             continue;
         }
         // Skip boxes whose AABB spans more than 80% of the original image.
-        let aabb_w = ordered.iter().map(|c| c.0).fold(f32::MIN, f32::max)
-            - ordered.iter().map(|c| c.0).fold(f32::MAX, f32::min);
-        let aabb_h = ordered.iter().map(|c| c.1).fold(f32::MIN, f32::max)
-            - ordered.iter().map(|c| c.1).fold(f32::MAX, f32::min);
+        let aabb_w =
+            ordered.iter().map(|c| c.0).fold(f32::MIN, f32::max) - ordered.iter().map(|c| c.0).fold(f32::MAX, f32::min);
+        let aabb_h =
+            ordered.iter().map(|c| c.1).fold(f32::MIN, f32::max) - ordered.iter().map(|c| c.1).fold(f32::MAX, f32::min);
         if aabb_w > orig_w * 0.8 || aabb_h > orig_h * 0.8 {
             continue;
         }
@@ -722,13 +698,11 @@ fn get_hull_input_pixels(pixels: &[(usize, usize)]) -> Vec<(f32, f32)> {
     pixels
         .iter()
         .filter(|&&(x, y)| {
-            [(-1i32, 0i32), (1, 0), (0, -1), (0, 1)]
-                .iter()
-                .any(|&(dx, dy)| {
-                    let nx = x as i32 + dx;
-                    let ny = y as i32 + dy;
-                    nx < 0 || ny < 0 || !set.contains(&(nx as usize, ny as usize))
-                })
+            [(-1i32, 0i32), (1, 0), (0, -1), (0, 1)].iter().any(|&(dx, dy)| {
+                let nx = x as i32 + dx;
+                let ny = y as i32 + dy;
+                nx < 0 || ny < 0 || !set.contains(&(nx as usize, ny as usize))
+            })
         })
         .map(|&(x, y)| (x as f32, y as f32))
         .collect()
@@ -761,9 +735,7 @@ fn convex_hull(points: &[(f32, f32)]) -> Vec<(f32, f32)> {
     // Upper hull.
     let lower_len = hull.len();
     for &p in pts.iter().rev().skip(1) {
-        while hull.len() > lower_len
-            && cross_2d(hull[hull.len() - 2], hull[hull.len() - 1], p) <= 0.0
-        {
+        while hull.len() > lower_len && cross_2d(hull[hull.len() - 2], hull[hull.len() - 1], p) <= 0.0 {
             hull.pop();
         }
         hull.push(p);
@@ -923,21 +895,13 @@ fn order_points(mut corners: [(f32, f32); 4]) -> [(f32, f32); 4] {
 
 /// Average probability inside a rotated quad (fast axis-aligned scan).
 fn box_score_fast(prob_data: &[f32], map_w: usize, map_h: usize, corners: &[(f32, f32); 4]) -> f32 {
-    let min_x = corners
-        .iter()
-        .map(|c| c.0)
-        .fold(f32::MAX, f32::min)
-        .max(0.0) as usize;
+    let min_x = corners.iter().map(|c| c.0).fold(f32::MAX, f32::min).max(0.0) as usize;
     let max_x = corners
         .iter()
         .map(|c| c.0)
         .fold(f32::MIN, f32::max)
         .min(map_w.saturating_sub(1) as f32) as usize;
-    let min_y = corners
-        .iter()
-        .map(|c| c.1)
-        .fold(f32::MAX, f32::min)
-        .max(0.0) as usize;
+    let min_y = corners.iter().map(|c| c.1).fold(f32::MAX, f32::min).max(0.0) as usize;
     let max_y = corners
         .iter()
         .map(|c| c.1)
@@ -971,8 +935,7 @@ fn point_in_quad(p: (f32, f32), quad: &[(f32, f32); 4]) -> bool {
     let mut neg = 0u8;
     for i in 0..4 {
         let j = (i + 1) % 4;
-        let cross = (quad[j].0 - quad[i].0) * (p.1 - quad[i].1)
-            - (quad[j].1 - quad[i].1) * (p.0 - quad[i].0);
+        let cross = (quad[j].0 - quad[i].0) * (p.1 - quad[i].1) - (quad[j].1 - quad[i].1) * (p.0 - quad[i].0);
         if cross > 0.0 {
             pos += 1;
         }
@@ -1185,12 +1148,7 @@ fn unclip_quad(quad: &[(f32, f32); 4], distance: f32) -> [(f32, f32); 4] {
 
 /// Intersection of two lines (each defined by two points).
 #[allow(dead_code)]
-fn line_intersect(
-    a1: (f32, f32),
-    a2: (f32, f32),
-    b1: (f32, f32),
-    b2: (f32, f32),
-) -> Option<(f32, f32)> {
+fn line_intersect(a1: (f32, f32), a2: (f32, f32), b1: (f32, f32), b2: (f32, f32)) -> Option<(f32, f32)> {
     let d1 = (a2.0 - a1.0, a2.1 - a1.1);
     let d2 = (b2.0 - b1.0, b2.1 - b1.1);
     let cross = d1.0 * d2.1 - d1.1 * d2.0;

@@ -21,11 +21,7 @@ impl BertTokenizer {
         }
         let cls_id = vocab.get("[CLS]").copied().unwrap_or(101);
         let sep_id = vocab.get("[SEP]").copied().unwrap_or(102);
-        Self {
-            vocab,
-            cls_id,
-            sep_id,
-        }
+        Self { vocab, cls_id, sep_id }
     }
 
     /// Tokenize text and return padded token IDs of length `context_length`.
@@ -77,11 +73,7 @@ impl BertTokenizer {
 
             while start < end {
                 let substr: String = chars[start..end].iter().collect();
-                let candidate = if start > 0 {
-                    format!("##{substr}")
-                } else {
-                    substr
-                };
+                let candidate = if start > 0 { format!("##{substr}") } else { substr };
                 if self.vocab.contains_key(&candidate) {
                     found = Some(candidate);
                     break;
@@ -195,11 +187,7 @@ fn is_control(c: char) -> bool {
 
 fn is_punctuation(c: char) -> bool {
     let cp = c as u32;
-    if (33..=47).contains(&cp)
-        || (58..=64).contains(&cp)
-        || (91..=96).contains(&cp)
-        || (123..=126).contains(&cp)
-    {
+    if (33..=47).contains(&cp) || (58..=64).contains(&cp) || (91..=96).contains(&cp) || (123..=126).contains(&cp) {
         return true;
     }
     // Unicode punctuation categories

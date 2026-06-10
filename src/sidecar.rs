@@ -246,9 +246,7 @@ async fn probe_health(url: &str) -> Result<(), String> {
             return Ok(());
         }
         if std::time::Instant::now() > deadline {
-            return Err(format!(
-                "python sidecar health probe timed out: {health_url}"
-            ));
+            return Err(format!("python sidecar health probe timed out: {health_url}"));
         }
         sleep(Duration::from_millis(500)).await;
     }

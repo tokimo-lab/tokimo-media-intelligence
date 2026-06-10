@@ -42,11 +42,7 @@ pub trait Transport: Send + Sync + 'static {
 
     /// Unary call with streaming response (server-sent frames).
     /// Returns a channel receiver of `Result<Item, RpcError>`.
-    async fn call_stream<Req, Item>(
-        &self,
-        route: &str,
-        req: &Req,
-    ) -> RpcResult<mpsc::Receiver<RpcResult<Item>>>
+    async fn call_stream<Req, Item>(&self, route: &str, req: &Req) -> RpcResult<mpsc::Receiver<RpcResult<Item>>>
     where
         Req: Serialize + Sync,
         Item: DeserializeOwned + Send + 'static;
@@ -81,9 +77,7 @@ impl UdsTransport {
     async fn connect(&self) -> RpcResult<tokio::net::UnixStream> {
         tokio::net::UnixStream::connect(self.socket_path.as_ref())
             .await
-            .map_err(|e| {
-                RpcError::Transport(format!("uds connect {}: {e}", self.socket_path.display()))
-            })
+            .map_err(|e| RpcError::Transport(format!("uds connect {}: {e}", self.socket_path.display())))
     }
 }
 
@@ -145,8 +139,7 @@ pub async fn read_header<R: AsyncRead + Unpin>(r: &mut R) -> RpcResult<(String, 
             return Err(RpcError::Transport("header too long".into()));
         }
     }
-    let line = std::str::from_utf8(&line)
-        .map_err(|e| RpcError::Transport(format!("header not utf8: {e}")))?;
+    let line = std::str::from_utf8(&line).map_err(|e| RpcError::Transport(format!("header not utf8: {e}")))?;
     let mut parts = line.splitn(2, ' ');
     let kind = parts.next().unwrap_or("").to_string();
     let route = parts.next().unwrap_or("").to_string();
@@ -171,11 +164,7 @@ impl Transport for UdsTransport {
         res
     }
 
-    async fn call_stream<Req, Item>(
-        &self,
-        route: &str,
-        req: &Req,
-    ) -> RpcResult<mpsc::Receiver<RpcResult<Item>>>
+    async fn call_stream<Req, Item>(&self, route: &str, req: &Req) -> RpcResult<mpsc::Receiver<RpcResult<Item>>>
     where
         Req: Serialize + Sync,
         Item: DeserializeOwned + Send + 'static,
@@ -265,23 +254,15 @@ impl Transport for UdsTransport {
         Req: Serialize + Sync,
         Res: DeserializeOwned + Send,
     {
-        Err(RpcError::Transport(
-            "UDS transport not supported on Windows".into(),
-        ))
+        Err(RpcError::Transport("UDS transport not supported on Windows".into()))
     }
 
-    async fn call_stream<Req, Item>(
-        &self,
-        _route: &str,
-        _req: &Req,
-    ) -> RpcResult<mpsc::Receiver<RpcResult<Item>>>
+    async fn call_stream<Req, Item>(&self, _route: &str, _req: &Req) -> RpcResult<mpsc::Receiver<RpcResult<Item>>>
     where
         Req: Serialize + Sync,
         Item: DeserializeOwned + Send + 'static,
     {
-        Err(RpcError::Transport(
-            "UDS transport not supported on Windows".into(),
-        ))
+        Err(RpcError::Transport("UDS transport not supported on Windows".into()))
     }
 
     async fn open_bidi<C, S>(&self, _route: &str) -> RpcResult<BidiStream<C, S>>
@@ -289,9 +270,7 @@ impl Transport for UdsTransport {
         C: Serialize + Send + Sync + 'static,
         S: DeserializeOwned + Send + 'static,
     {
-        Err(RpcError::Transport(
-            "UDS transport not supported on Windows".into(),
-        ))
+        Err(RpcError::Transport("UDS transport not supported on Windows".into()))
     }
 }
 
@@ -354,11 +333,7 @@ impl Transport for HttpTransport {
         Ok(res)
     }
 
-    async fn call_stream<Req, Item>(
-        &self,
-        route: &str,
-        req: &Req,
-    ) -> RpcResult<mpsc::Receiver<RpcResult<Item>>>
+    async fn call_stream<Req, Item>(&self, route: &str, req: &Req) -> RpcResult<mpsc::Receiver<RpcResult<Item>>>
     where
         Req: Serialize + Sync,
         Item: DeserializeOwned + Send + 'static,
@@ -410,9 +385,7 @@ impl Transport for HttpTransport {
                             return;
                         }
                         Err(e) => {
-                            let _ = tx
-                                .send(Err(RpcError::Transport(format!("decode: {e}"))))
-                                .await;
+                            let _ = tx.send(Err(RpcError::Transport(format!("decode: {e}")))).await;
                             return;
                         }
                     }
@@ -428,8 +401,7 @@ impl Transport for HttpTransport {
         S: DeserializeOwned + Send + 'static,
     {
         Err(RpcError::Transport(
-            "bidirectional streaming over HTTP not implemented (use UDS or deploy with WS gateway)"
-                .into(),
+            "bidirectional streaming over HTTP not implemented (use UDS or deploy with WS gateway)".into(),
         ))
     }
 }
@@ -473,11 +445,7 @@ impl AnyTransport {
         }
     }
 
-    pub async fn call_stream<Req, Item>(
-        &self,
-        route: &str,
-        req: &Req,
-    ) -> RpcResult<mpsc::Receiver<RpcResult<Item>>>
+    pub async fn call_stream<Req, Item>(&self, route: &str, req: &Req) -> RpcResult<mpsc::Receiver<RpcResult<Item>>>
     where
         Req: Serialize + Sync,
         Item: DeserializeOwned + Send + 'static,

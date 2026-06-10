@@ -43,10 +43,7 @@ struct ModelText {
 
 macro_rules! locale_entry {
     ($tag:literal) => {
-        (
-            $tag,
-            include_str!(concat!("../../../locales/", $tag, ".json")),
-        )
+        ($tag, include_str!(concat!("../../../locales/", $tag, ".json")))
     };
 }
 
@@ -117,10 +114,7 @@ fn t_attr(l: &LocaleBundle, key: &str) -> String {
 }
 
 fn t_cap(l: &LocaleBundle, key: &str) -> String {
-    l.capabilities
-        .get(key)
-        .cloned()
-        .unwrap_or_else(|| key.to_string())
+    l.capabilities.get(key).cloned().unwrap_or_else(|| key.to_string())
 }
 
 // ---------------- Public entry ----------------
