@@ -71,5 +71,4 @@ dashmap = "6"
 # Memory management (malloc_trim on Linux)
 libc = "0.2"
 
-[lints]
-workspace = true
+
