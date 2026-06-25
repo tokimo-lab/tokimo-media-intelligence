@@ -54,7 +54,7 @@ impl AccelProvider {
 
 /// Snapshot of AI service status for the system-info API.
 #[derive(Debug, Clone)]
-pub struct AiStatus {
+pub struct MediaIntelligenceStatus {
     /// The active execution provider (CPU = none available).
     pub accel_provider: AccelProvider,
     pub ocr_loaded: bool,
@@ -75,7 +75,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
-use config::AiConfig;
+use config::MediaIntelligenceConfig;
 use tokio::sync::{OnceCell, RwLock};
 
 /// How long an idle model stays in memory before eviction.
@@ -198,7 +198,7 @@ pub fn build_session(path: impl AsRef<std::path::Path>) -> ort::Result<ort::sess
 /// The GPU execution provider selected at init (CPU = disabled / not available).
 static ACTIVE_EP: std::sync::OnceLock<AccelProvider> = std::sync::OnceLock::new();
 
-/// Returns the active execution provider (set once during `AiService::new`).
+/// Returns the active execution provider (set once during `MediaIntelligenceService::new`).
 pub fn active_ep() -> AccelProvider {
     ACTIVE_EP.get().copied().unwrap_or(AccelProvider::Cpu)
 }
@@ -383,24 +383,24 @@ fn epoch_secs() -> u64 {
 ///
 /// Resolution order:
 /// 1. `config.python_sidecar_dir` (explicit override)
-/// 2. `$TOKIMO_PERCEPTION_PYTHON_DIR`
-/// 3. `<exe_dir>/../../packages/tokimo-perception/python` (dev builds under `target/`)
+/// 2. `$TOKIMO_MEDIA_INTELLIGENCE_PYTHON_DIR`
+/// 3. `<exe_dir>/../../packages/tokimo-media-intelligence/python` (dev builds under `target/`)
 /// 4. `CARGO_MANIFEST_DIR/python` (library tests)
-fn python_sidecar_dir(cfg: &AiConfig) -> std::path::PathBuf {
+fn python_sidecar_dir(cfg: &MediaIntelligenceConfig) -> std::path::PathBuf {
     use std::path::PathBuf;
 
     if let Some(p) = &cfg.python_sidecar_dir {
         return PathBuf::from(p);
     }
-    if let Ok(p) = std::env::var("TOKIMO_PERCEPTION_PYTHON_DIR") {
+    if let Ok(p) = std::env::var("TOKIMO_MEDIA_INTELLIGENCE_PYTHON_DIR") {
         return PathBuf::from(p);
     }
     if let Ok(exe) = std::env::current_exe() {
-        // exe at <repo>/target/debug/tokimo-perception-worker → climb to repo root
+        // exe at <repo>/target/debug/tokimo-media-intelligence-worker → climb to repo root
         let mut cur = exe.parent().map(std::path::Path::to_path_buf);
         for _ in 0..6 {
             let Some(dir) = cur else { break };
-            let candidate = dir.join("packages/tokimo-perception/python");
+            let candidate = dir.join("packages/tokimo-media-intelligence/python");
             if candidate.exists() {
                 return candidate;
             }
@@ -414,8 +414,8 @@ fn python_sidecar_dir(cfg: &AiConfig) -> std::path::PathBuf {
 ///
 /// Wrap in `Arc` and store in your app state. All methods are `&self`.
 /// Models are evicted from memory after [`MODEL_IDLE_TIMEOUT`] of inactivity.
-pub struct AiService {
-    config: AiConfig,
+pub struct MediaIntelligenceService {
+    config: MediaIntelligenceConfig,
     ocr_manager: OnceCell<ocr_manager::OcrManager>,
     sidecar: Arc<sidecar::SidecarManager>,
     // Heavy models — evictable (wrapped in Arc for shared ownership during eviction)
@@ -429,11 +429,11 @@ pub struct AiService {
     streaming_stt_last_use: AtomicU64,
 }
 
-impl AiService {
-    pub fn new(config: AiConfig) -> Arc<Self> {
+impl MediaIntelligenceService {
+    pub fn new(config: MediaIntelligenceConfig) -> Arc<Self> {
         let (ep, ep_desc) = detect_best_ep();
 
-        // OnceLock — first call wins; subsequent AiService::new calls (tests) are no-ops.
+        // OnceLock — first call wins; subsequent MediaIntelligenceService::new calls (tests) are no-ops.
         let _ = ACTIVE_EP.set(ep);
 
         let applied = {
@@ -559,7 +559,7 @@ impl AiService {
         }
     }
 
-    pub fn config(&self) -> &AiConfig {
+    pub fn config(&self) -> &MediaIntelligenceConfig {
         &self.config
     }
 
@@ -568,8 +568,8 @@ impl AiService {
     }
 
     /// Report current AI service status for the system-info API.
-    pub fn status(&self) -> AiStatus {
-        AiStatus {
+    pub fn status(&self) -> MediaIntelligenceStatus {
+        MediaIntelligenceStatus {
             accel_provider: active_ep(),
             ocr_loaded: self
                 .ocr_manager

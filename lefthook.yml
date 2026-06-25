@@ -29,6 +29,6 @@ pre-commit:
 pre-push:
   commands:
     fmt-check:
-      run: cargo fmt -p tokimo-perception -- --check
+      run: cargo fmt -p tokimo-media-intelligence -- --check
     clippy:
-      run: cargo clippy -p tokimo-perception --lib --bins --tests -- -D warnings
+      run: cargo clippy -p tokimo-media-intelligence --lib --bins --tests -- -D warnings

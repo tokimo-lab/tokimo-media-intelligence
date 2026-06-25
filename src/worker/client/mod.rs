@@ -1,7 +1,7 @@
-//! tokimo-perception-worker client library.
+//! tokimo-media-intelligence-worker client library.
 //!
-//! Provides [`AiWorkerClient`] — a drop-in replacement for
-//! `tokimo_perception::AiService` that speaks the ai-worker RPC protocol over a
+//! Provides [`MediaIntelligenceWorkerClient`] — a drop-in replacement for
+//! `tokimo_media_intelligence::MediaIntelligenceService` that speaks the ai-worker RPC protocol over a
 //! pluggable transport, plus a [`Supervisor`] that manages the local
 //! worker process lifecycle (spawn, idle-exit, auto-respawn).
 //!
@@ -19,8 +19,8 @@ pub use super::protocol::transport::{AnyTransport, Transport, UdsTransport};
 pub use super::protocol::types as wire;
 pub use super::protocol::{RpcError, RpcResult};
 
-pub use client::{AiWorkerClient, StreamingSttSession};
-pub use settings::{AiWorkerMode, AiWorkerSettings};
+pub use client::{MediaIntelligenceWorkerClient, StreamingSttSession};
+pub use settings::{MediaIntelligenceWorkerMode, MediaIntelligenceWorkerSettings};
 pub use supervisor::{Supervisor, SupervisorConfig};
 
 use std::path::{Path, PathBuf};
@@ -28,7 +28,7 @@ use std::path::{Path, PathBuf};
 /// Resolve the ONNX Runtime shared library path. Search order:
 ///   1. `bin/onnxruntime/current/lib/` (deps.toml-managed, preferred)
 ///   2. `<data_local_path>/vendors/onnxruntime/lib/` (legacy compat)
-///   3. perception python sidecar venv (dev fallback)
+///   3. media intelligence python sidecar venv (dev fallback)
 pub fn resolve_ort_dylib_path(data_local_path: &Path) -> Option<PathBuf> {
     let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent() // packages/
@@ -47,8 +47,8 @@ pub fn resolve_ort_dylib_path(data_local_path: &Path) -> Option<PathBuf> {
     if canonical.exists() {
         return Some(canonical);
     }
-    // 3. perception python sidecar venv — onnxruntime installed as a Python dependency
-    if let Some(venv) = repo_root.map(|r| r.join("packages/tokimo-perception/python/.venv"))
+    // 3. media intelligence python sidecar venv — onnxruntime installed as a Python dependency
+    if let Some(venv) = repo_root.map(|r| r.join("packages/tokimo-media-intelligence/python/.venv"))
         && let Ok(entries) = std::fs::read_dir(venv.join("lib"))
     {
         for py_ver in entries.flatten() {

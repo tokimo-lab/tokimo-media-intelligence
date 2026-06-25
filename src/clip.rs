@@ -49,7 +49,7 @@ impl ClipService {
         let tokenizer = BertTokenizer::new();
 
         // Pre-warm the category embedding cache while still in a sync context
-        // (new() is called inside spawn_blocking from AiService).
+        // (new() is called inside spawn_blocking from MediaIntelligenceService).
         // We use a std Mutex temporarily for the sync callback.
         let txt_session_std = StdMutex::new(txt_session);
         let cache_dir_clone = models_dir.to_string();

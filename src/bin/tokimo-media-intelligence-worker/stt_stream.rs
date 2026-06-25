@@ -7,10 +7,10 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use tokimo_perception::AiService;
-use tokimo_perception::worker::protocol::error::{RpcError, RpcResult};
-use tokimo_perception::worker::protocol::frame::{read_frame, write_frame};
-use tokimo_perception::worker::protocol::types as wire;
+use tokimo_media_intelligence::MediaIntelligenceService;
+use tokimo_media_intelligence::worker::protocol::error::{RpcError, RpcResult};
+use tokimo_media_intelligence::worker::protocol::frame::{read_frame, write_frame};
+use tokimo_media_intelligence::worker::protocol::types as wire;
 use tokio::net::unix::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::sync::mpsc;
 use tokio::time::timeout;
@@ -24,7 +24,7 @@ enum DriverMsg {
 }
 
 pub async fn handle(
-    ai: Arc<AiService>,
+    ai: Arc<MediaIntelligenceService>,
     mut r: OwnedReadHalf,
     mut w: OwnedWriteHalf,
     sig: mpsc::Sender<WorkerSignal>,

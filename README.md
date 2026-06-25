@@ -1,4 +1,4 @@
-# tokimo-perception
+# tokimo-media-intelligence
 
 > On-device perception stack for the [Tokimo](https://github.com/tokimo-lab/tokimo) web desktop OS.
 > OCR, CLIP image/text embedding, face detection & recognition, and speech-to-text — all via ONNX Runtime + sherpa-onnx, exposed as a library crate *and* a standalone sidecar worker.
@@ -14,11 +14,11 @@ English · [简体中文](./README.zh-CN.md)
 
 Most Rust ML crates pick one task (OCR, face, STT, …) and stop there. Tokimo needs all of them to coexist in a single process *and* needs them to get out of the way when idle — a long-running desktop server can't afford to hold 2 GB of ONNX sessions in memory forever.
 
-`tokimo-perception` is the answer:
+`tokimo-media-intelligence` is the answer:
 
 - **One crate, many models.** OCR (PaddleOCR / PP-OCRv5 / RapidOCR), CLIP (OpenAI ViT-B/32 & ViT-L/14, multilingual variants), face detection + embedding, and streaming STT (sherpa-onnx Zipformer / Whisper).
 - **Lazy + self-evicting.** Models are loaded on first call and automatically dropped from memory after 3 minutes of inactivity. GPU VRAM comes back the moment you stop using it.
-- **Runs in-process *or* as a sidecar.** Use it as a plain Rust library, or spawn the bundled `tokimo-perception-worker` binary and talk to it over a Unix domain socket / HTTP. The sidecar exits on its own when idle — perfect when you want the OS to reclaim the whole process's RSS.
+- **Runs in-process *or* as a sidecar.** Use it as a plain Rust library, or spawn the bundled `tokimo-media-intelligence-worker` binary and talk to it over a Unix domain socket / HTTP. The sidecar exits on its own when idle — perfect when you want the OS to reclaim the whole process's RSS.
 - **One execution-provider abstraction.** CUDA, ROCm, CoreML, DirectML, or CPU — picked automatically at startup with graceful fallback.
 
 ## Features
@@ -39,20 +39,20 @@ Most Rust ML crates pick one task (OCR, face, STT, …) and stop there. Tokimo n
 │                                                              │
 │   ┌──────────────────────┐       ┌──────────────────────┐    │
 │   │  as a library        │       │  as a worker client  │    │
-│   │  tokimo_perception   │       │  AiWorkerClient      │    │
+│   │  tokimo_media_intelligence   │       │  MediaIntelligenceWorkerClient      │    │
 │   └──────────┬───────────┘       └──────────┬───────────┘    │
 └──────────────┼──────────────────────────────┼────────────────┘
                │                              │
                │                              │  UDS / HTTP frames
                ▼                              ▼
      ┌──────────────────┐          ┌─────────────────────────┐
-     │  in-process      │          │ tokimo-perception-      │
+     │  in-process      │          │ tokimo-media-intelligence-      │
      │  ONNX Runtime    │          │ worker  (separate proc) │
      │  sessions        │          │  auto-exits when idle   │
      └──────────────────┘          └─────────────────────────┘
 ```
 
-The worker speaks a simple length-prefixed RPC (`src/worker/protocol/`) using either Unix domain sockets (local, zero-copy for blobs) or framed HTTP (remote, Docker-friendly). Both transports expose the same `AiWorkerClient` surface, so you can develop against in-process inference and flip a config switch to move the models into a separate container later.
+The worker speaks a simple length-prefixed RPC (`src/worker/protocol/`) using either Unix domain sockets (local, zero-copy for blobs) or framed HTTP (remote, Docker-friendly). Both transports expose the same `MediaIntelligenceWorkerClient` surface, so you can develop against in-process inference and flip a config switch to move the models into a separate container later.
 
 ## Quick start
 
@@ -61,15 +61,15 @@ The worker speaks a simple length-prefixed RPC (`src/worker/protocol/`) using ei
 ```toml
 # Cargo.toml
 [dependencies]
-tokimo-perception = { git = "https://github.com/tokimo-lab/tokimo-perception" }
+tokimo-media-intelligence = { git = "https://github.com/tokimo-lab/tokimo-media-intelligence" }
 ```
 
 ```rust
-use tokimo_perception::{config::AiConfig, AiService};
+use tokimo_media_intelligence::{config::MediaIntelligenceConfig, MediaIntelligenceService};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let svc = AiService::new(AiConfig::default());
+    let svc = MediaIntelligenceService::new(MediaIntelligenceConfig::default());
     let png = std::fs::read("invoice.png")?;
     // Second argument picks an OCR model; `None` uses the default.
     let items = svc.ocr(&png, None).await.map_err(anyhow::Error::msg)?;
@@ -85,11 +85,11 @@ async fn main() -> anyhow::Result<()> {
 
 ```bash
 # Build once
-cargo build --release --bin tokimo-perception-worker
+cargo build --release --bin tokimo-media-intelligence-worker
 
 # Run with auto-eviction after 5 minutes idle
-./target/release/tokimo-perception-worker \
-    --socket /tmp/tokimo-perception.sock \
+./target/release/tokimo-media-intelligence-worker \
+    --socket /tmp/tokimo-media-intelligence.sock \
     --idle-exit-secs 300
 ```
 
@@ -97,13 +97,13 @@ Then from your server:
 
 ```rust
 use std::sync::Arc;
-use tokimo_perception::worker::client::AiWorkerClient;
-use tokimo_perception::worker::protocol::transport::{AnyTransport, UdsTransport};
+use tokimo_media_intelligence::worker::client::MediaIntelligenceWorkerClient;
+use tokimo_media_intelligence::worker::protocol::transport::{AnyTransport, UdsTransport};
 
 let transport = Arc::new(AnyTransport::Uds(
-    UdsTransport::new("/tmp/tokimo-perception.sock"),
+    UdsTransport::new("/tmp/tokimo-media-intelligence.sock"),
 ));
-let client = AiWorkerClient::new(transport);
+let client = MediaIntelligenceWorkerClient::new(transport);
 let embedding = client.clip_image(jpeg_bytes).await?;
 ```
 
@@ -126,7 +126,7 @@ transparently on the next call.
 
 ```
 src/
-  lib.rs               — AiService facade + EP selection + lazy unloading
+  lib.rs               — MediaIntelligenceService facade + EP selection + lazy unloading
   ocr*.rs              — Paddle / RapidOCR detector + recognizer + layout merge
   clip.rs              — ViT image encoder + text encoder + cosine search
   face.rs              — RetinaFace + ArcFace pipeline
@@ -134,15 +134,15 @@ src/
   models.rs            — download / verify / cache manifest
   worker/
     protocol/          — length-prefixed msgpack RPC (UDS + HTTP transports)
-    client/            — AiWorkerClient + supervisor (auto-respawn)
+    client/            — MediaIntelligenceWorkerClient + supervisor (auto-respawn)
   bin/
-    tokimo-perception-worker.rs — standalone sidecar binary
+    tokimo-media-intelligence-worker.rs — standalone sidecar binary
 config/                 — PaddleOCR character dict + CLIP vocab
 ```
 
 ## Status
 
-This crate is extracted from the Tokimo monorepo with its full history preserved (81 commits going back to the `rust-ai` → `rust-ocr` → `rust-models` → `tokimo-perception` rename chain). The public API is still evolving as Tokimo itself evolves; until `1.0` we will cut breaking releases whenever the monorepo needs them.
+This crate is extracted from the Tokimo monorepo with its full history preserved (81 commits going back to the `rust-ai` → `rust-ocr` → `rust-models` → `tokimo-media-intelligence` rename chain). The public API is still evolving as Tokimo itself evolves; until `1.0` we will cut breaking releases whenever the monorepo needs them.
 
 If you just want a stable OCR / CLIP / face / STT Rust crate *today*, this probably isn't it — you'll be pinning commits. But if you're building something similar and want a reference for how to ship multi-model ONNX workloads with sane lifecycle management, dig in.
 

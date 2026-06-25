@@ -1,7 +1,7 @@
-//! Convert between tokimo-perception' native types and ai-worker-protocol wire types.
+//! Convert between tokimo-media-intelligence' native types and ai-worker-protocol wire types.
 
-use tokimo_perception as rm;
-use tokimo_perception::worker::protocol::types as wire;
+use tokimo_media_intelligence as rm;
+use tokimo_media_intelligence::worker::protocol::types as wire;
 
 pub fn accel_to_wire(p: rm::AccelProvider) -> wire::AccelProvider {
     match p {
@@ -13,8 +13,8 @@ pub fn accel_to_wire(p: rm::AccelProvider) -> wire::AccelProvider {
     }
 }
 
-pub fn status_to_wire(s: rm::AiStatus) -> wire::AiStatus {
-    wire::AiStatus {
+pub fn status_to_wire(s: rm::MediaIntelligenceStatus) -> wire::MediaIntelligenceStatus {
+    wire::MediaIntelligenceStatus {
         accel_provider: accel_to_wire(s.accel_provider),
         ocr_loaded: s.ocr_loaded,
         clip_loaded: s.clip_loaded,

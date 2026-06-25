@@ -3,7 +3,7 @@
 //! This module is shared between the worker binary (out-of-process host) and
 //! the in-proc client + supervisor used by `tokimo-server`.
 //!
-//! Wire types here **mirror** tokimo-perception' public types but add `serde` derive so they
+//! Wire types here **mirror** tokimo-media-intelligence' public types but add `serde` derive so they
 //! can travel over UDS / HTTP. Conversion helpers live in the worker binary.
 
 #![allow(clippy::match_same_arms)] // read-loop arms are logically distinct (EOF vs error)

@@ -1,5 +1,5 @@
 /// Download model files if missing.
-use crate::config::AiConfig;
+use crate::config::MediaIntelligenceConfig;
 use std::path::Path;
 use tokimo_media_scraper::model_downloader::ModelDownloader;
 
@@ -79,11 +79,11 @@ const MODEL_FILES: &[ModelFile] = &[
     },
 ];
 
-pub async fn ensure_models(config: &AiConfig) -> Result<(), String> {
+pub async fn ensure_models(config: &MediaIntelligenceConfig) -> Result<(), String> {
     ensure_models_with_progress(config, None).await
 }
 
-pub async fn ensure_models_with_progress(config: &AiConfig, on_progress: Option<ProgressFn>) -> Result<(), String> {
+pub async fn ensure_models_with_progress(config: &MediaIntelligenceConfig, on_progress: Option<ProgressFn>) -> Result<(), String> {
     let enabled: Vec<ModelCategory> = [
         (config.enable_clip, ModelCategory::Clip),
         (config.enable_ocr, ModelCategory::OcrServer),
@@ -103,7 +103,7 @@ pub async fn ensure_models_with_progress(config: &AiConfig, on_progress: Option<
 
 /// Download models for a single category.
 pub async fn ensure_category_with_progress(
-    config: &AiConfig,
+    config: &MediaIntelligenceConfig,
     category: ModelCategory,
     on_progress: Option<ProgressFn>,
 ) -> Result<(), String> {
@@ -111,7 +111,7 @@ pub async fn ensure_category_with_progress(
 }
 
 async fn download_category(
-    config: &AiConfig,
+    config: &MediaIntelligenceConfig,
     category: ModelCategory,
     on_progress: &Option<ProgressFn>,
 ) -> Result<(), String> {
@@ -237,7 +237,7 @@ async fn download_category(
 }
 
 /// Check whether all enabled model files exist on disk (no download).
-pub fn all_models_present(config: &AiConfig) -> bool {
+pub fn all_models_present(config: &MediaIntelligenceConfig) -> bool {
     let dir = &config.models_dir;
     let checks: Vec<(&str, bool)> = vec![
         ("clip/vit-b-16.img.fp32.onnx", config.enable_clip),
@@ -261,14 +261,14 @@ pub fn all_models_present(config: &AiConfig) -> bool {
 }
 
 /// Check whether CLIP model files exist on disk.
-pub fn clip_models_present(config: &AiConfig) -> bool {
+pub fn clip_models_present(config: &MediaIntelligenceConfig) -> bool {
     let dir = &config.models_dir;
     Path::new(&format!("{dir}/clip/vit-b-16.img.fp32.onnx")).exists()
         && Path::new(&format!("{dir}/clip/vit-b-16.txt.fp32.onnx")).exists()
 }
 
 /// Check whether OCR Server model files exist on disk.
-pub fn ocr_server_models_present(config: &AiConfig) -> bool {
+pub fn ocr_server_models_present(config: &MediaIntelligenceConfig) -> bool {
     let dir = &config.models_dir;
     Path::new(&format!("{dir}/ocr/PP-OCRv5_server_det.onnx")).exists()
         && Path::new(&format!("{dir}/ocr/PP-OCRv5_cls.onnx")).exists()
@@ -276,7 +276,7 @@ pub fn ocr_server_models_present(config: &AiConfig) -> bool {
 }
 
 /// Check whether OCR Mobile model files exist on disk.
-pub fn ocr_mobile_models_present(config: &AiConfig) -> bool {
+pub fn ocr_mobile_models_present(config: &MediaIntelligenceConfig) -> bool {
     let dir = &config.models_dir;
     Path::new(&format!("{dir}/ocr/PP-OCRv5_mobile_det.onnx")).exists()
         && Path::new(&format!("{dir}/ocr/PP-OCRv5_cls.onnx")).exists()
@@ -284,12 +284,12 @@ pub fn ocr_mobile_models_present(config: &AiConfig) -> bool {
 }
 
 /// Check whether OCR model files exist on disk (at least server variant).
-pub fn ocr_models_present(config: &AiConfig) -> bool {
+pub fn ocr_models_present(config: &MediaIntelligenceConfig) -> bool {
     ocr_server_models_present(config)
 }
 
 /// Check whether face detection/recognition model files exist on disk.
-pub fn face_models_present(config: &AiConfig) -> bool {
+pub fn face_models_present(config: &MediaIntelligenceConfig) -> bool {
     let dir = &config.models_dir;
     Path::new(&format!("{dir}/face/det_10g.onnx")).exists() && Path::new(&format!("{dir}/face/w600k_r50.onnx")).exists()
 }

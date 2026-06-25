@@ -1,6 +1,6 @@
-//! Wire types — mirror tokimo-perception' public types with serde + pure-data shape.
+//! Wire types — mirror tokimo-media-intelligence' public types with serde + pure-data shape.
 //!
-//! Conversion back to tokimo-perception types happens inside the worker binary.
+//! Conversion back to tokimo-media-intelligence types happens inside the worker binary.
 
 use serde::{Deserialize, Serialize};
 
@@ -18,7 +18,7 @@ pub enum AccelProvider {
 
 impl AccelProvider {
     /// Short human-readable name (matches the strings previously returned by
-    /// `tokimo_perception::config::AccelProvider::name()`).
+    /// `tokimo_media_intelligence::config::AccelProvider::name()`).
     #[must_use]
     pub fn name(self) -> &'static str {
         match self {
@@ -32,7 +32,7 @@ impl AccelProvider {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AiStatus {
+pub struct MediaIntelligenceStatus {
     pub accel_provider: AccelProvider,
     pub ocr_loaded: bool,
     pub clip_loaded: bool,
@@ -42,7 +42,7 @@ pub struct AiStatus {
 
 /// Static + readiness info snapshot. Returned from `/v1/info`; cached by the
 /// client and used to back the sync `is_*_enabled` / `*_ready` / `config()`
-/// APIs that mirror `tokimo_perception::AiService`.
+/// APIs that mirror `tokimo_media_intelligence::MediaIntelligenceService`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkerInfo {
     pub accel_provider: AccelProvider,

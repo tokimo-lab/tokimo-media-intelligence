@@ -10,10 +10,10 @@
 //! and returns early with "Exiting due to terminate flag". We combine that with
 //! a task-local `CANCEL_ID` so that intermediate layers (OcrManager, backends,
 //! CLIP/Face services) don't need to thread a `cancel_id` parameter through
-//! their signatures — only the AiService public API does.
+//! their signatures — only the MediaIntelligenceService public API does.
 //!
 //! Flow:
-//!   1. `AiService::ocr(img, model, cancel_id)` wraps its body in
+//!   1. `MediaIntelligenceService::ocr(img, model, cancel_id)` wraps its body in
 //!      [`with_cancel_id`], which sets the task-local.
 //!   2. The actual inference site creates `Arc<RunOptions>` and calls
 //!      [`register_current`] before `run_async`. If a cancel_id is set, the
@@ -81,7 +81,7 @@ fn ptr_eq(a: &OptRef, b: &OptRef) -> bool {
 
 /// Register the given `RunOptions` under the current task-local [`CANCEL_ID`].
 /// Returns a guard that un-registers on drop. Returns `None` when no cancel id
-/// is bound (e.g. when AiService was called with `cancel_id = None` — the fast
+/// is bound (e.g. when MediaIntelligenceService was called with `cancel_id = None` — the fast
 /// path, no registry interaction).
 #[must_use]
 pub fn register_current(options: &Arc<RunOptions<NoSelectedOutputs>>) -> Option<InflightGuard> {

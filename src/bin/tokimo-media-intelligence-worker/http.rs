@@ -14,9 +14,9 @@ use axum::extract::{Path as AxPath, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
-use tokimo_perception::AiService;
-use tokimo_perception::worker::protocol::routes;
-use tokimo_perception::worker::protocol::types as wire;
+use tokimo_media_intelligence::MediaIntelligenceService;
+use tokimo_media_intelligence::worker::protocol::routes;
+use tokimo_media_intelligence::worker::protocol::types as wire;
 use tokio::sync::mpsc;
 use tokio_util::io::ReaderStream;
 
@@ -25,11 +25,11 @@ use crate::supervisor::WorkerSignal;
 
 #[derive(Clone)]
 struct HttpState {
-    ai: Arc<AiService>,
+    ai: Arc<MediaIntelligenceService>,
     sig: mpsc::Sender<WorkerSignal>,
 }
 
-pub fn router(ai: Arc<AiService>, sig: mpsc::Sender<WorkerSignal>) -> Router {
+pub fn router(ai: Arc<MediaIntelligenceService>, sig: mpsc::Sender<WorkerSignal>) -> Router {
     let st = HttpState { ai, sig };
     Router::new()
         .route("/v1/{*route}", post(handle_unary_or_stream))
@@ -42,7 +42,7 @@ async fn handle_unary_or_stream(State(st): State<HttpState>, AxPath(route): AxPa
     let _ = st.sig.send(WorkerSignal::Activity).await;
 
     if full_route == routes::ENSURE_CATEGORY {
-        let (tx, rx) = mpsc::channel::<tokimo_perception::worker::protocol::RpcResult<wire::ProgressFrame>>(32);
+        let (tx, rx) = mpsc::channel::<tokimo_media_intelligence::worker::protocol::RpcResult<wire::ProgressFrame>>(32);
         dispatch::dispatch_server_stream(Arc::clone(&st.ai), &full_route, &body, tx);
         // Convert mpsc<frame> into a length-prefixed byte stream.
         let stream = async_stream::stream! {

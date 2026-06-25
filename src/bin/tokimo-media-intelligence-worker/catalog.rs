@@ -1,11 +1,11 @@
 //! Unified model catalog for the settings UI.
 //!
-//! Aggregates status from the native [`AiService`] (OCR / CLIP / Face / STT) and
+//! Aggregates status from the native [`MediaIntelligenceService`] (OCR / CLIP / Face / STT) and
 //! — if configured — the Python sidecar `/models` endpoint, and returns a
 //! fully localized [`ModelCatalog`] per the caller's preferred languages.
 //!
 //! The catalog is the single source of truth consumed by the main server's
-//! `GET /api/perception/catalog` pass-through; everything user-visible (section
+//! `GET /api/media-intelligence/catalog` pass-through; everything user-visible (section
 //! titles, model names, attribute labels, capability tags, action labels) is
 //! localized *here* so downstream consumers remain pure data routers.
 
@@ -13,9 +13,9 @@ use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
 use serde::Deserialize;
-use tokimo_perception::AiService;
-use tokimo_perception::ocr_manager::MODEL_GOT_OCR_2;
-use tokimo_perception::worker::protocol::types as wire;
+use tokimo_media_intelligence::MediaIntelligenceService;
+use tokimo_media_intelligence::ocr_manager::MODEL_GOT_OCR_2;
+use tokimo_media_intelligence::worker::protocol::types as wire;
 
 // ---------------- Locale bundle ----------------
 
@@ -119,7 +119,7 @@ fn t_cap(l: &LocaleBundle, key: &str) -> String {
 
 // ---------------- Public entry ----------------
 
-pub async fn build_catalog(ai: &Arc<AiService>, req: &wire::CatalogRequest) -> wire::ModelCatalog {
+pub async fn build_catalog(ai: &Arc<MediaIntelligenceService>, req: &wire::CatalogRequest) -> wire::ModelCatalog {
     let l = pick_locale(&req.languages);
     let mut sections = Vec::new();
 
@@ -136,7 +136,7 @@ pub async fn build_catalog(ai: &Arc<AiService>, req: &wire::CatalogRequest) -> w
 
 // ---------------- OCR ----------------
 
-async fn build_ocr_section(ai: &Arc<AiService>, l: &LocaleBundle) -> wire::CatalogSection {
+async fn build_ocr_section(ai: &Arc<MediaIntelligenceService>, l: &LocaleBundle) -> wire::CatalogSection {
     let text = t_section(l, "ocr");
     let mut models = Vec::new();
     for m in ai.ocr_available_models() {
@@ -199,7 +199,7 @@ async fn build_ocr_section(ai: &Arc<AiService>, l: &LocaleBundle) -> wire::Catal
 
 // ---------------- CLIP ----------------
 
-fn build_clip_section(ai: &Arc<AiService>, l: &LocaleBundle) -> wire::CatalogSection {
+fn build_clip_section(ai: &Arc<MediaIntelligenceService>, l: &LocaleBundle) -> wire::CatalogSection {
     let text = t_section(l, "clip");
     let mut models = Vec::new();
     if ai.is_clip_enabled() {
@@ -241,7 +241,7 @@ fn build_clip_section(ai: &Arc<AiService>, l: &LocaleBundle) -> wire::CatalogSec
 
 // ---------------- Face ----------------
 
-fn build_face_section(ai: &Arc<AiService>, l: &LocaleBundle) -> wire::CatalogSection {
+fn build_face_section(ai: &Arc<MediaIntelligenceService>, l: &LocaleBundle) -> wire::CatalogSection {
     let text = t_section(l, "face");
     let mut models = Vec::new();
     if ai.is_face_enabled() {
@@ -283,7 +283,7 @@ fn build_face_section(ai: &Arc<AiService>, l: &LocaleBundle) -> wire::CatalogSec
 
 // ---------------- STT ----------------
 
-fn build_stt_section(ai: &Arc<AiService>, l: &LocaleBundle) -> wire::CatalogSection {
+fn build_stt_section(ai: &Arc<MediaIntelligenceService>, l: &LocaleBundle) -> wire::CatalogSection {
     let text = t_section(l, "stt");
     let models = if ai.is_stt_enabled() {
         ai.stt_models_status()
@@ -339,7 +339,7 @@ fn build_stt_section(ai: &Arc<AiService>, l: &LocaleBundle) -> wire::CatalogSect
 
 // ---------------- Sidecar ----------------
 
-fn build_sidecar_section(_ai: &Arc<AiService>, l: &LocaleBundle) -> wire::CatalogSection {
+fn build_sidecar_section(_ai: &Arc<MediaIntelligenceService>, l: &LocaleBundle) -> wire::CatalogSection {
     // For v1 we return an empty sidecar section. Aggregating the Python sidecar's
     // `/models` endpoint is tracked as a follow-up — the architecture already
     // supports it (CatalogModel.provider = "python-sidecar", id prefix `sidecar.*`).

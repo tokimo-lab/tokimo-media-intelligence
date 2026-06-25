@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-pub enum AiWorkerMode {
+pub enum MediaIntelligenceWorkerMode {
     /// Spawn a local worker process and connect over UDS.
     #[default]
     Auto,
@@ -13,8 +13,8 @@ pub enum AiWorkerMode {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AiWorkerSettings {
-    pub mode: AiWorkerMode,
+pub struct MediaIntelligenceWorkerSettings {
+    pub mode: MediaIntelligenceWorkerMode,
     /// When `mode = Remote`, the base URL (e.g. `http://ai-worker:5679`).
     /// When `mode = Auto`, optional UDS override (otherwise
     /// `{data_local}/ai-worker.sock`).
@@ -24,7 +24,7 @@ pub struct AiWorkerSettings {
     /// Idle seconds before graceful worker shutdown. `None` = 900 (15 min).
     /// `Some(0)` = disabled (same effect as `keepalive_always`).
     pub idle_timeout_secs: Option<u32>,
-    /// Path to the `tokimo-perception-worker` binary (when `mode = Auto`).
+    /// Path to the `tokimo-media-intelligence-worker` binary (when `mode = Auto`).
     pub worker_binary: Option<String>,
     /// Override path to the UDS socket.
     pub socket_path: Option<String>,
@@ -32,10 +32,10 @@ pub struct AiWorkerSettings {
     pub models_dir: Option<String>,
 }
 
-impl Default for AiWorkerSettings {
+impl Default for MediaIntelligenceWorkerSettings {
     fn default() -> Self {
         Self {
-            mode: AiWorkerMode::Auto,
+            mode: MediaIntelligenceWorkerMode::Auto,
             remote_url: None,
             keepalive_always: false,
             idle_timeout_secs: None,
@@ -46,7 +46,7 @@ impl Default for AiWorkerSettings {
     }
 }
 
-impl AiWorkerSettings {
+impl MediaIntelligenceWorkerSettings {
     pub fn effective_idle_secs(&self) -> u32 {
         if self.keepalive_always {
             return 0;

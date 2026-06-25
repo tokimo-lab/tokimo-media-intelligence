@@ -1,12 +1,12 @@
 [package]
-name = "tokimo-perception"
+name = "tokimo-media-intelligence"
 version = "0.1.0"
 edition = "2024"
 description = "OCR + CLIP + Face recognition + STT via ONNX Runtime / sherpa-onnx (library)"
 
 
 [lib]
-name = "tokimo_perception"
+name = "tokimo_media_intelligence"
 path = "src/lib.rs"
 
 [dependencies]
@@ -53,7 +53,7 @@ zip = { version = "8", default-features = false, features = ["deflate"] }
 # Worker protocol transports need these for HTTP helper types
 # (reqwest already enables rustls above)
 
-# --- Worker binary (tokimo-perception-worker) deps ---
+# --- Worker binary (tokimo-media-intelligence-worker) deps ---
 axum = { version = "0.8", features = ["macros", "ws"] }
 tokio-util = { version = "0.7", features = ["io"] }
 tower-http = { version = "0.6", features = ["trace"] }

@@ -27,7 +27,7 @@ use crate::worker::protocol::{RpcError, RpcResult};
 
 #[derive(Debug, Clone)]
 pub struct SupervisorConfig {
-    /// Path to the `tokimo-perception-worker` binary.
+    /// Path to the `tokimo-media-intelligence-worker` binary.
     pub worker_binary: PathBuf,
     /// UDS path the worker listens on.
     pub socket_path: PathBuf,

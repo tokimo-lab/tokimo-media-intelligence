@@ -1,15 +1,15 @@
 //! Core RPC dispatch: given a route + (decoded) request bytes, invoke the
-//! matching AiService method and return response bytes.
+//! matching MediaIntelligenceService method and return response bytes.
 //!
 //! Shared by both the UDS listener and the HTTP axum router.
 
 use std::sync::Arc;
 
 use serde::Serialize;
-use tokimo_perception::AiService;
-use tokimo_perception::worker::protocol::error::{RpcError, RpcResult};
-use tokimo_perception::worker::protocol::routes;
-use tokimo_perception::worker::protocol::types as wire;
+use tokimo_media_intelligence::MediaIntelligenceService;
+use tokimo_media_intelligence::worker::protocol::error::{RpcError, RpcResult};
+use tokimo_media_intelligence::worker::protocol::routes;
+use tokimo_media_intelligence::worker::protocol::types as wire;
 use tokio::sync::mpsc;
 
 use crate::catalog;
@@ -37,7 +37,7 @@ fn encode<T: Serialize>(v: &T) -> RpcResult<Vec<u8>> {
 }
 
 /// Run a unary RPC. Returns rmp-encoded `Result<Res, RpcError>`.
-pub async fn dispatch_unary(ai: &Arc<AiService>, route: &str, req_bytes: &[u8]) -> Vec<u8> {
+pub async fn dispatch_unary(ai: &Arc<MediaIntelligenceService>, route: &str, req_bytes: &[u8]) -> Vec<u8> {
     let result = unary_inner(ai, route, req_bytes).await;
     // Always encode a Result<Value, RpcError>; even errors go through as Ok-encoded outer frame.
     match &result {
@@ -46,11 +46,11 @@ pub async fn dispatch_unary(ai: &Arc<AiService>, route: &str, req_bytes: &[u8]) 
     }
 }
 
-async fn unary_inner(ai: &Arc<AiService>, route: &str, req_bytes: &[u8]) -> RpcResult<Vec<u8>> {
+async fn unary_inner(ai: &Arc<MediaIntelligenceService>, route: &str, req_bytes: &[u8]) -> RpcResult<Vec<u8>> {
     match route {
         routes::PING => encode::<RpcResult<wire::Pong>>(&Ok(wire::Pong {
             version: env!("CARGO_PKG_VERSION").to_string(),
-            accel_provider: convert::accel_to_wire(tokimo_perception::active_ep()),
+            accel_provider: convert::accel_to_wire(tokimo_media_intelligence::active_ep()),
         })),
         routes::INFO => {
             let cfg = ai.config();
@@ -78,7 +78,7 @@ async fn unary_inner(ai: &Arc<AiService>, route: &str, req_bytes: &[u8]) -> RpcR
             };
             encode::<RpcResult<wire::WorkerInfo>>(&Ok(info))
         }
-        routes::STATUS => encode::<RpcResult<wire::AiStatus>>(&Ok(convert::status_to_wire(ai.status()))),
+        routes::STATUS => encode::<RpcResult<wire::MediaIntelligenceStatus>>(&Ok(convert::status_to_wire(ai.status()))),
         routes::LIST_OCR_MODELS => {
             let list: Vec<wire::OcrModelInfo> = ai
                 .ocr_available_models()
@@ -154,7 +154,7 @@ async fn unary_inner(ai: &Arc<AiService>, route: &str, req_bytes: &[u8]) -> RpcR
         }
         routes::CANCEL => {
             let req: wire::CancelRequest = decode(req_bytes)?;
-            let cancelled = tokimo_perception::cancel::cancel_inflight(&req.request_id);
+            let cancelled = tokimo_media_intelligence::cancel::cancel_inflight(&req.request_id);
             encode::<RpcResult<wire::CancelResponse>>(&Ok(wire::CancelResponse { cancelled }))
         }
         routes::STT_TRANSCRIBE => {
@@ -197,7 +197,7 @@ async fn unary_inner(ai: &Arc<AiService>, route: &str, req_bytes: &[u8]) -> RpcR
 /// Streaming response: write progress frames to `tx`.
 /// Used for model download endpoints.
 pub fn dispatch_server_stream(
-    ai: Arc<AiService>,
+    ai: Arc<MediaIntelligenceService>,
     route: &str,
     req_bytes: &[u8],
     tx: mpsc::Sender<RpcResult<wire::ProgressFrame>>,
@@ -213,7 +213,7 @@ pub fn dispatch_server_stream(
 }
 
 async fn server_stream_inner(
-    ai: &Arc<AiService>,
+    ai: &Arc<MediaIntelligenceService>,
     route: &str,
     req_bytes: &[u8],
     tx: mpsc::Sender<RpcResult<wire::ProgressFrame>>,
@@ -222,8 +222,8 @@ async fn server_stream_inner(
         routes::ENSURE_CATEGORY => {
             let req: wire::EnsureCategoryRequest = decode(req_bytes)?;
             let tx_clone = tx.clone();
-            // ProgressFn is a boxed async closure — see tokimo-perception::models::ProgressFn
-            let progress: tokimo_perception::models::ProgressFn = Box::new(move |file, status, pct, dl, total| {
+            // ProgressFn is a boxed async closure — see tokimo-media-intelligence::models::ProgressFn
+            let progress: tokimo_media_intelligence::models::ProgressFn = Box::new(move |file, status, pct, dl, total| {
                 let frame = wire::ProgressFrame::Progress {
                     file_name: file.to_string(),
                     status: status.to_string(),
@@ -270,7 +270,7 @@ async fn server_stream_inner(
             let route = catalog::route_for(&model_id);
             tracing::debug!(%model_id, "worker: MODEL_DOWNLOAD entered");
             let tx_cat = tx.clone();
-            let progress_native: tokimo_perception::models::ProgressFn =
+            let progress_native: tokimo_media_intelligence::models::ProgressFn =
                 Box::new(move |file, status, pct, dl, total| {
                     // Pass the real per-file name so the rust-server side can
                     // aggregate multi-file downloads (e.g. RapidOCR = det + rec)
@@ -289,7 +289,7 @@ async fn server_stream_inner(
             match route {
                 catalog::ModelRoute::OcrServer => {
                     ai.ensure_category_with_progress(
-                        tokimo_perception::models::ModelCategory::OcrServer,
+                        tokimo_media_intelligence::models::ModelCategory::OcrServer,
                         progress_native,
                     )
                     .await
@@ -297,19 +297,19 @@ async fn server_stream_inner(
                 }
                 catalog::ModelRoute::OcrMobile => {
                     ai.ensure_category_with_progress(
-                        tokimo_perception::models::ModelCategory::OcrMobile,
+                        tokimo_media_intelligence::models::ModelCategory::OcrMobile,
                         progress_native,
                     )
                     .await
                     .map_err(map_err)?;
                 }
                 catalog::ModelRoute::Clip => {
-                    ai.ensure_category_with_progress(tokimo_perception::models::ModelCategory::Clip, progress_native)
+                    ai.ensure_category_with_progress(tokimo_media_intelligence::models::ModelCategory::Clip, progress_native)
                         .await
                         .map_err(map_err)?;
                 }
                 catalog::ModelRoute::Face => {
-                    ai.ensure_category_with_progress(tokimo_perception::models::ModelCategory::Face, progress_native)
+                    ai.ensure_category_with_progress(tokimo_media_intelligence::models::ModelCategory::Face, progress_native)
                         .await
                         .map_err(map_err)?;
                 }
@@ -349,7 +349,7 @@ async fn server_stream_inner(
 /// the status → progress shape used for native category downloads so the
 /// upstream aggregator treats both paths identically.
 async fn run_sidecar_download(
-    ai: &Arc<AiService>,
+    ai: &Arc<MediaIntelligenceService>,
     slug: &str,
     model_id: &str,
     tx: &mpsc::Sender<RpcResult<wire::ProgressFrame>>,

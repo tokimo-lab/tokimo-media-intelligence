@@ -1,4 +1,4 @@
-//! `tokimo-perception-worker` — sidecar process hosting tokimo-perception out of the main
+//! `tokimo-media-intelligence-worker` — sidecar process hosting tokimo-media-intelligence out of the main
 //! server's address space, so AI model memory can be reclaimed physically by
 //! exiting the worker on idle.
 
@@ -29,12 +29,12 @@ use std::time::{Duration, Instant};
 
 use clap::Parser;
 use supervisor::WorkerSignal;
-use tokimo_perception::{AiService, config::AiConfig};
+use tokimo_media_intelligence::{MediaIntelligenceService, config::MediaIntelligenceConfig};
 use tokio::net::TcpListener;
 use tokio::sync::mpsc;
 
 #[derive(Parser, Debug)]
-#[command(name = "tokimo-perception-worker", version)]
+#[command(name = "tokimo-media-intelligence-worker", version)]
 struct Args {
     /// UDS path to listen on. If omitted, UDS listener is disabled.
     #[arg(long)]
@@ -77,7 +77,7 @@ async fn main() -> anyhow::Result<()> {
         anyhow::bail!("must specify --socket or --http (or both)");
     }
 
-    let mut config = AiConfig::default();
+    let mut config = MediaIntelligenceConfig::default();
     if let Some(d) = &args.models_dir {
         config.models_dir = d.display().to_string();
     }
@@ -86,7 +86,7 @@ async fn main() -> anyhow::Result<()> {
     config.enable_face = !args.disable_face;
     config.enable_stt = !args.disable_stt;
 
-    let ai = AiService::new(config);
+    let ai = MediaIntelligenceService::new(config);
     ai.start_idle_eviction();
 
     let (sig_tx, mut sig_rx) = mpsc::channel::<WorkerSignal>(256);

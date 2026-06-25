@@ -2792,7 +2792,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "tokimo-perception"
+name = "tokimo-media-intelligence"
 version = "0.1.0"
 dependencies = [
  "anyhow",

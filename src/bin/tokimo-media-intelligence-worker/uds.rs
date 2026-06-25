@@ -3,10 +3,10 @@
 
 use std::sync::Arc;
 
-use tokimo_perception::AiService;
-use tokimo_perception::worker::protocol::error::RpcError;
-use tokimo_perception::worker::protocol::transport::read_header;
-use tokimo_perception::worker::protocol::{frame, types as wire};
+use tokimo_media_intelligence::MediaIntelligenceService;
+use tokimo_media_intelligence::worker::protocol::error::RpcError;
+use tokimo_media_intelligence::worker::protocol::transport::read_header;
+use tokimo_media_intelligence::worker::protocol::{frame, types as wire};
 use tokio::io::AsyncWriteExt;
 use tokio::net::{UnixListener, UnixStream};
 use tokio::sync::mpsc;
@@ -17,7 +17,7 @@ use crate::supervisor::WorkerSignal;
 
 pub async fn serve(
     socket_path: std::path::PathBuf,
-    ai: Arc<AiService>,
+    ai: Arc<MediaIntelligenceService>,
     sig: mpsc::Sender<WorkerSignal>,
 ) -> std::io::Result<()> {
     // Remove stale socket if present.
@@ -40,7 +40,7 @@ pub async fn serve(
     }
 }
 
-async fn handle_conn(stream: UnixStream, ai: Arc<AiService>, sig: mpsc::Sender<WorkerSignal>) -> Result<(), RpcError> {
+async fn handle_conn(stream: UnixStream, ai: Arc<MediaIntelligenceService>, sig: mpsc::Sender<WorkerSignal>) -> Result<(), RpcError> {
     let (mut r, mut w) = stream.into_split();
     let (kind, route) = read_header(&mut r).await?;
     match kind.as_str() {
@@ -52,13 +52,13 @@ async fn handle_conn(stream: UnixStream, ai: Arc<AiService>, sig: mpsc::Sender<W
             // Record activity — any RPC counts as a signal to keep the worker alive.
             let _ = sig.send(WorkerSignal::Activity).await;
             // If this was a shutdown call, trigger process exit AFTER ack.
-            if route == tokimo_perception::worker::protocol::routes::SHUTDOWN {
+            if route == tokimo_media_intelligence::worker::protocol::routes::SHUTDOWN {
                 let _ = sig.send(WorkerSignal::Shutdown).await;
             }
         }
         "SSTREAM" => {
             let req_bytes: Vec<u8> = read_frame_raw(&mut r).await?;
-            let (tx, mut rx) = mpsc::channel::<tokimo_perception::worker::protocol::RpcResult<wire::ProgressFrame>>(32);
+            let (tx, mut rx) = mpsc::channel::<tokimo_media_intelligence::worker::protocol::RpcResult<wire::ProgressFrame>>(32);
             dispatch::dispatch_server_stream(Arc::clone(&ai), &route, &req_bytes, tx);
             while let Some(item) = rx.recv().await {
                 frame::write_frame(&mut w, &item).await?;
@@ -66,7 +66,7 @@ async fn handle_conn(stream: UnixStream, ai: Arc<AiService>, sig: mpsc::Sender<W
             let _ = sig.send(WorkerSignal::Activity).await;
         }
         "BIDI" => {
-            if route == tokimo_perception::worker::protocol::routes::STT_STREAM {
+            if route == tokimo_media_intelligence::worker::protocol::routes::STT_STREAM {
                 stt_stream::handle(Arc::clone(&ai), r, w, sig.clone()).await?;
             } else {
                 return Err(RpcError::NotFound(format!("bidi route: {route}")));

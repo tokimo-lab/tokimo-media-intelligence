@@ -185,11 +185,11 @@ async fn spawn(python_dir: &PathBuf, models_dir: &str) -> Result<Running, String
 }
 
 /// `DATA_LOCAL_PATH` is consumed by `app/config.py` to derive the models directory.
-/// `models_dir` is usually `<DATA_LOCAL_PATH>/perception` (or legacy `ai-models`),
+/// `models_dir` is usually `<DATA_LOCAL_PATH>/media-intelligence` (or legacy `ai-models`),
 /// so stripping the suffix gives the root.
 fn derive_data_local_path(models_dir: &str) -> String {
     let p = std::path::Path::new(models_dir);
-    if p.ends_with("perception") || p.ends_with("ai-models") {
+    if p.ends_with("media-intelligence") || p.ends_with("ai-models") {
         p.parent()
             .map_or_else(|| models_dir.to_string(), |p| p.display().to_string())
     } else {

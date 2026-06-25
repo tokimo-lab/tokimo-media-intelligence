@@ -1,13 +1,13 @@
-//! `AiWorkerClient` — drop-in replacement for `tokimo_perception::AiService`.
+//! `MediaIntelligenceWorkerClient` — drop-in replacement for `tokimo_media_intelligence::MediaIntelligenceService`.
 //!
 //! Wraps a [`Transport`](crate::worker::protocol::transport::Transport) implementation
 //! (UDS or HTTP) and caches a [`WorkerInfo`] snapshot so that the many sync
-//! getters on the old `AiService` (e.g. `is_ocr_enabled()`, `models_ready()`)
+//! getters on the old `MediaIntelligenceService` (e.g. `is_ocr_enabled()`, `models_ready()`)
 //! can be served without awaiting.
 //!
 //! Conversion between `ai_worker_protocol` wire types and `rust-server`'s
 //! internal types happens at the caller boundary — this crate intentionally
-//! does **not** depend on `tokimo-perception`.
+//! does **not** depend on `tokimo-media-intelligence`.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -21,11 +21,11 @@ use crate::worker::protocol::transport::{AnyTransport, BidiStream, HttpTransport
 use crate::worker::protocol::types as wire;
 use crate::worker::protocol::{RpcError, RpcResult};
 
-use super::settings::{AiWorkerMode, AiWorkerSettings};
+use super::settings::{MediaIntelligenceWorkerMode, MediaIntelligenceWorkerSettings};
 use super::supervisor::{Supervisor, SupervisorConfig};
 
 /// Result type returned from client methods. String error mirrors the
-/// `Result<_, String>` contract of the previous `tokimo_perception::AiService` so
+/// `Result<_, String>` contract of the previous `tokimo_media_intelligence::MediaIntelligenceService` so
 /// caller sites need minimal rewrites.
 pub type ClientResult<T> = Result<T, String>;
 
@@ -33,19 +33,19 @@ fn rpc_to_string(e: RpcError) -> String {
     e.to_string()
 }
 
-/// Stream handle returned by [`AiWorkerClient::streaming_stt`].
+/// Stream handle returned by [`MediaIntelligenceWorkerClient::streaming_stt`].
 pub struct StreamingSttSession {
     pub tx: mpsc::Sender<wire::SttClientFrame>,
     pub rx: mpsc::Receiver<RpcResult<wire::SttServerFrame>>,
 }
 
-pub struct AiWorkerClient {
+pub struct MediaIntelligenceWorkerClient {
     transport: Arc<AnyTransport>,
     supervisor: Option<Arc<Supervisor>>,
     info: ArcSwap<wire::WorkerInfo>,
 }
 
-impl AiWorkerClient {
+impl MediaIntelligenceWorkerClient {
     /// Construct a client around a raw transport. The caller is expected to
     /// have ensured the worker is reachable (or to install a [`Supervisor`]).
     pub fn new(transport: Arc<AnyTransport>) -> Arc<Self> {
@@ -66,21 +66,21 @@ impl AiWorkerClient {
         })
     }
 
-    /// Build an [`AiWorkerClient`] from DB-persisted settings and the local
+    /// Build an [`MediaIntelligenceWorkerClient`] from DB-persisted settings and the local
     /// data directory. Handles transport selection, worker binary resolution,
     /// and supervisor setup.
-    pub fn from_settings(settings: &AiWorkerSettings, data_local_path: &Path) -> Arc<Self> {
-        let ai_models_dir = data_local_path.join("perception");
+    pub fn from_settings(settings: &MediaIntelligenceWorkerSettings, data_local_path: &Path) -> Arc<Self> {
+        let media_models_dir = data_local_path.join("media-intelligence");
 
         let socket_path = settings
             .socket_path
             .as_deref()
-            .map_or_else(|| data_local_path.join("ai-worker.sock"), std::path::PathBuf::from);
+            .map_or_else(|| data_local_path.join("media-intelligence-worker.sock"), std::path::PathBuf::from);
 
         let worker_binary = resolve_worker_binary(settings.worker_binary.as_deref());
 
         let transport: Arc<AnyTransport> = match settings.mode {
-            AiWorkerMode::Remote => {
+            MediaIntelligenceWorkerMode::Remote => {
                 let url = settings
                     .remote_url
                     .clone()
@@ -88,18 +88,18 @@ impl AiWorkerClient {
                 let t = HttpTransport::new(url).expect("build HttpTransport");
                 Arc::new(AnyTransport::Http(t))
             }
-            AiWorkerMode::Auto => Arc::new(AnyTransport::Uds(UdsTransport::new(socket_path.clone()))),
+            MediaIntelligenceWorkerMode::Auto => Arc::new(AnyTransport::Uds(UdsTransport::new(socket_path.clone()))),
         };
 
         let client = match settings.mode {
-            AiWorkerMode::Remote => Self::new(Arc::clone(&transport)),
-            AiWorkerMode::Auto => {
-                let extra_env = resolve_perception_python_dir();
+            MediaIntelligenceWorkerMode::Remote => Self::new(Arc::clone(&transport)),
+            MediaIntelligenceWorkerMode::Auto => {
+                let extra_env = resolve_media_intelligence_python_dir();
                 let cfg = SupervisorConfig {
                     worker_binary: PathBuf::from(worker_binary),
                     socket_path,
                     http_addr: None,
-                    models_dir: Some(ai_models_dir),
+                    models_dir: Some(media_models_dir),
                     idle_secs: settings.effective_idle_secs(),
                     extra_env,
                     remote: false,
@@ -161,9 +161,9 @@ impl AiWorkerClient {
         self.info.load_full()
     }
 
-    pub fn status(&self) -> wire::AiStatus {
+    pub fn status(&self) -> wire::MediaIntelligenceStatus {
         let i = self.info.load();
-        wire::AiStatus {
+        wire::MediaIntelligenceStatus {
             accel_provider: i.accel_provider,
             ocr_loaded: i.ocr_loaded,
             clip_loaded: i.clip_loaded,
@@ -385,7 +385,7 @@ impl AiWorkerClient {
             .map_err(rpc_to_string)
     }
 
-    // ---------------- Catalog (unified perception API) ----------------
+    // ---------------- Catalog (unified media intelligence API) ----------------
 
     pub async fn get_catalog(&self, languages: Vec<String>) -> ClientResult<wire::ModelCatalog> {
         self.ensure_up().await.map_err(rpc_to_string)?;
@@ -455,7 +455,7 @@ fn empty_info() -> wire::WorkerInfo {
     }
 }
 
-/// Resolve the `tokimo-perception-worker` binary path.
+/// Resolve the `tokimo-media-intelligence-worker` binary path.
 /// Prefers the explicit override, then checks sibling of current exe, falls
 /// back to PATH lookup.
 fn resolve_worker_binary(override_path: Option<&str>) -> String {
@@ -464,27 +464,27 @@ fn resolve_worker_binary(override_path: Option<&str>) -> String {
     }
     std::env::current_exe()
         .ok()
-        .and_then(|p| p.parent().map(|d| d.join("tokimo-perception-worker")))
+        .and_then(|p| p.parent().map(|d| d.join("tokimo-media-intelligence-worker")))
         .and_then(|p| if p.exists() { Some(p) } else { None })
         .map_or_else(
-            || "tokimo-perception-worker".to_string(),
+            || "tokimo-media-intelligence-worker".to_string(),
             |p| p.to_string_lossy().into_owned(),
         )
 }
 
-/// Resolve `TOKIMO_PERCEPTION_PYTHON_DIR` for the dev sidecar if unset.
-fn resolve_perception_python_dir() -> Vec<(String, String)> {
+/// Resolve `TOKIMO_MEDIA_INTELLIGENCE_PYTHON_DIR` for the dev sidecar if unset.
+fn resolve_media_intelligence_python_dir() -> Vec<(String, String)> {
     let mut extra_env: Vec<(String, String)> = Vec::new();
-    if std::env::var("TOKIMO_PERCEPTION_PYTHON_DIR").is_err() {
+    if std::env::var("TOKIMO_MEDIA_INTELLIGENCE_PYTHON_DIR").is_err() {
         let python_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
             .parent()
             .and_then(|p| p.parent())
-            .map(|root| root.join("packages/tokimo-perception/python"));
+            .map(|root| root.join("packages/tokimo-media-intelligence/python"));
         if let Some(dir) = python_dir
             && dir.exists()
         {
             extra_env.push((
-                "TOKIMO_PERCEPTION_PYTHON_DIR".to_string(),
+                "TOKIMO_MEDIA_INTELLIGENCE_PYTHON_DIR".to_string(),
                 dir.to_string_lossy().into_owned(),
             ));
         }
