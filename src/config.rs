@@ -17,9 +17,13 @@ pub struct MediaIntelligenceConfig {
     pub ocr_det_max_side: Option<u32>,
 }
 
+pub fn data_local_path() -> String {
+    std::env::var("TOKIMO_DATA_LOCAL_PATH").unwrap_or_else(|_| "./.data".to_string())
+}
+
 impl Default for MediaIntelligenceConfig {
     fn default() -> Self {
-        let data_local_path = std::env::var("DATA_LOCAL_PATH").unwrap_or_else(|_| "./.data".to_string());
+        let data_local_path = data_local_path();
         Self {
             models_dir: format!("{data_local_path}/media-intelligence"),
             enable_ocr: true,

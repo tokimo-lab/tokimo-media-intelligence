@@ -146,7 +146,7 @@ async fn spawn(python_dir: &PathBuf, models_dir: &str) -> Result<Running, String
             "--log-level",
             "info",
         ])
-        .env("DATA_LOCAL_PATH", derive_data_local_path(models_dir))
+        .env("TOKIMO_DATA_LOCAL_PATH", derive_data_local_path(models_dir))
         .env("AI_MODELS_DIR", models_dir)
         // Python sidecar's `app.config.Settings` reads the `MODELS_DIR` env var
         // (pydantic-settings, case-insensitive). Without it the default
@@ -184,8 +184,8 @@ async fn spawn(python_dir: &PathBuf, models_dir: &str) -> Result<Running, String
     Ok(Running { child, url })
 }
 
-/// `DATA_LOCAL_PATH` is consumed by `app/config.py` to derive the models directory.
-/// `models_dir` is usually `<DATA_LOCAL_PATH>/media-intelligence` (or legacy `ai-models`),
+/// `TOKIMO_DATA_LOCAL_PATH` is kept aligned with the model root for child tooling.
+/// `models_dir` is usually `<TOKIMO_DATA_LOCAL_PATH>/media-intelligence` (or legacy `ai-models`),
 /// so stripping the suffix gives the root.
 fn derive_data_local_path(models_dir: &str) -> String {
     let p = std::path::Path::new(models_dir);

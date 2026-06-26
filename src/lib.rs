@@ -75,7 +75,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
-use config::MediaIntelligenceConfig;
+use config::{MediaIntelligenceConfig, data_local_path};
 use tokio::sync::{OnceCell, RwLock};
 
 /// How long an idle model stays in memory before eviction.
@@ -437,8 +437,7 @@ impl MediaIntelligenceService {
         let _ = ACTIVE_EP.set(ep);
 
         let applied = {
-            let data_local =
-                std::path::PathBuf::from(std::env::var("DATA_LOCAL_PATH").unwrap_or_else(|_| "./.data".to_string()));
+            let data_local = std::path::PathBuf::from(data_local_path());
             match worker::client::resolve_ort_dylib_path(&data_local) {
                 Some(dylib_path) => ort::init_from(dylib_path).map_or_else(
                     |e| {

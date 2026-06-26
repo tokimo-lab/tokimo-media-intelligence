@@ -5,7 +5,7 @@ services:
     ports:
       - "5679:5679"
     volumes:
-      - ../../${DATA_LOCAL_PATH:-data}/media-intelligence:/data/models
+      - ../../${TOKIMO_DATA_LOCAL_PATH:-data}/media-intelligence:/data/models
     environment:
       - MODELS_DIR=/data/models
       - DEVICE=cpu

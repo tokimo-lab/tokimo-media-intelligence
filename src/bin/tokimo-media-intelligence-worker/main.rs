@@ -44,7 +44,7 @@ struct Args {
     #[arg(long)]
     http: Option<String>,
 
-    /// Model directory (overrides DATA_LOCAL_PATH-derived default).
+    /// Model directory (overrides TOKIMO_DATA_LOCAL_PATH-derived default).
     #[arg(long)]
     models_dir: Option<PathBuf>,
 
