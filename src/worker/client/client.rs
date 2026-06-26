@@ -72,10 +72,10 @@ impl MediaIntelligenceWorkerClient {
     pub fn from_settings(settings: &MediaIntelligenceWorkerSettings, data_local_path: &Path) -> Arc<Self> {
         let media_models_dir = data_local_path.join("media-intelligence");
 
-        let socket_path = settings
-            .socket_path
-            .as_deref()
-            .map_or_else(|| data_local_path.join("media-intelligence-worker.sock"), std::path::PathBuf::from);
+        let socket_path = settings.socket_path.as_deref().map_or_else(
+            || data_local_path.join("media-intelligence-worker.sock"),
+            std::path::PathBuf::from,
+        );
 
         let worker_binary = resolve_worker_binary(settings.worker_binary.as_deref());
 

@@ -40,7 +40,11 @@ pub async fn serve(
     }
 }
 
-async fn handle_conn(stream: UnixStream, ai: Arc<MediaIntelligenceService>, sig: mpsc::Sender<WorkerSignal>) -> Result<(), RpcError> {
+async fn handle_conn(
+    stream: UnixStream,
+    ai: Arc<MediaIntelligenceService>,
+    sig: mpsc::Sender<WorkerSignal>,
+) -> Result<(), RpcError> {
     let (mut r, mut w) = stream.into_split();
     let (kind, route) = read_header(&mut r).await?;
     match kind.as_str() {
@@ -58,7 +62,8 @@ async fn handle_conn(stream: UnixStream, ai: Arc<MediaIntelligenceService>, sig:
         }
         "SSTREAM" => {
             let req_bytes: Vec<u8> = read_frame_raw(&mut r).await?;
-            let (tx, mut rx) = mpsc::channel::<tokimo_media_intelligence::worker::protocol::RpcResult<wire::ProgressFrame>>(32);
+            let (tx, mut rx) =
+                mpsc::channel::<tokimo_media_intelligence::worker::protocol::RpcResult<wire::ProgressFrame>>(32);
             dispatch::dispatch_server_stream(Arc::clone(&ai), &route, &req_bytes, tx);
             while let Some(item) = rx.recv().await {
                 frame::write_frame(&mut w, &item).await?;

@@ -83,7 +83,10 @@ pub async fn ensure_models(config: &MediaIntelligenceConfig) -> Result<(), Strin
     ensure_models_with_progress(config, None).await
 }
 
-pub async fn ensure_models_with_progress(config: &MediaIntelligenceConfig, on_progress: Option<ProgressFn>) -> Result<(), String> {
+pub async fn ensure_models_with_progress(
+    config: &MediaIntelligenceConfig,
+    on_progress: Option<ProgressFn>,
+) -> Result<(), String> {
     let enabled: Vec<ModelCategory> = [
         (config.enable_clip, ModelCategory::Clip),
         (config.enable_ocr, ModelCategory::OcrServer),

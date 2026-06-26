@@ -223,17 +223,18 @@ async fn server_stream_inner(
             let req: wire::EnsureCategoryRequest = decode(req_bytes)?;
             let tx_clone = tx.clone();
             // ProgressFn is a boxed async closure — see tokimo-media-intelligence::models::ProgressFn
-            let progress: tokimo_media_intelligence::models::ProgressFn = Box::new(move |file, status, pct, dl, total| {
-                let frame = wire::ProgressFrame::Progress {
-                    file_name: file.to_string(),
-                    status: status.to_string(),
-                    percent: u32::from(pct),
-                    downloaded_bytes: dl,
-                    total_bytes: total,
-                };
-                // Non-blocking: drop progress updates if channel is full/closed.
-                let _ = tx_clone.try_send(Ok(frame));
-            });
+            let progress: tokimo_media_intelligence::models::ProgressFn =
+                Box::new(move |file, status, pct, dl, total| {
+                    let frame = wire::ProgressFrame::Progress {
+                        file_name: file.to_string(),
+                        status: status.to_string(),
+                        percent: u32::from(pct),
+                        downloaded_bytes: dl,
+                        total_bytes: total,
+                    };
+                    // Non-blocking: drop progress updates if channel is full/closed.
+                    let _ = tx_clone.try_send(Ok(frame));
+                });
             match req.category {
                 Some(c) => {
                     let cat = convert::category_from_wire(c);
@@ -304,14 +305,20 @@ async fn server_stream_inner(
                     .map_err(map_err)?;
                 }
                 catalog::ModelRoute::Clip => {
-                    ai.ensure_category_with_progress(tokimo_media_intelligence::models::ModelCategory::Clip, progress_native)
-                        .await
-                        .map_err(map_err)?;
+                    ai.ensure_category_with_progress(
+                        tokimo_media_intelligence::models::ModelCategory::Clip,
+                        progress_native,
+                    )
+                    .await
+                    .map_err(map_err)?;
                 }
                 catalog::ModelRoute::Face => {
-                    ai.ensure_category_with_progress(tokimo_media_intelligence::models::ModelCategory::Face, progress_native)
-                        .await
-                        .map_err(map_err)?;
+                    ai.ensure_category_with_progress(
+                        tokimo_media_intelligence::models::ModelCategory::Face,
+                        progress_native,
+                    )
+                    .await
+                    .map_err(map_err)?;
                 }
                 catalog::ModelRoute::Stt(slug) => {
                     let tx_stt = tx.clone();
