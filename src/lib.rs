@@ -960,14 +960,18 @@ impl MediaIntelligenceService {
         let extract_result = tokio::task::spawn_blocking(move || {
             std::process::Command::new("tar")
                 .args(["xjf", &archive_clone, "-C", &stt_dir_clone])
-                .status()
+                .output()
         })
         .await
         .map_err(|e| format!("Extract task panicked: {e}"))?
         .map_err(|e| format!("Failed to run tar: {e}"))?;
-        if !extract_result.success() {
+        if !extract_result.status.success() {
             let _ = tokio::fs::remove_file(&archive_path).await;
-            return Err("tar extraction failed".into());
+            let stderr = String::from_utf8_lossy(&extract_result.stderr).trim().to_string();
+            if stderr.is_empty() {
+                return Err(format!("tar extraction failed: exit status {}", extract_result.status));
+            }
+            return Err(format!("tar extraction failed: {stderr}"));
         }
 
         // Clean up archive
