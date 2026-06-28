@@ -5,7 +5,9 @@
 //! Server-streamed routes return a length-prefixed frame stream in the body.
 //! Bidirectional streams (STT) go over `/v1/stt/stream` WebSocket.
 
-use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use axum::Router;
 use axum::body::{Body, Bytes};
@@ -39,6 +41,10 @@ struct HttpState {
 struct ProxyState {
     supervisor: Arc<Supervisor>,
     socket_path: Arc<std::path::PathBuf>,
+    active_requests: Arc<AtomicUsize>,
+    idle_generation: Arc<AtomicU64>,
+    last_completed_at: Arc<Mutex<Instant>>,
+    idle_reap_secs: u64,
 }
 
 pub fn router(ai: Arc<MediaIntelligenceService>, sig: mpsc::Sender<WorkerSignal>) -> Router {
@@ -50,10 +56,14 @@ pub fn router(ai: Arc<MediaIntelligenceService>, sig: mpsc::Sender<WorkerSignal>
         .with_state(st)
 }
 
-pub fn proxy_router(supervisor: Arc<Supervisor>, socket_path: std::path::PathBuf) -> Router {
+pub fn proxy_router(supervisor: Arc<Supervisor>, socket_path: std::path::PathBuf, idle_reap_secs: u64) -> Router {
     let st = ProxyState {
         supervisor,
         socket_path: Arc::new(socket_path),
+        active_requests: Arc::new(AtomicUsize::new(0)),
+        idle_generation: Arc::new(AtomicU64::new(0)),
+        last_completed_at: Arc::new(Mutex::new(Instant::now())),
+        idle_reap_secs,
     };
     Router::new()
         .route("/v1/{*route}", post(handle_proxy_unary_or_stream))
@@ -115,13 +125,22 @@ async fn handle_proxy_unary_or_stream(
     body: Bytes,
 ) -> Response {
     let full_route = format!("/v1/{route}");
+    let guard = ProxyActivityGuard::new(st.clone());
     if let Err(e) = st.supervisor.ensure_up().await {
         return msgpack_error_response(e);
     }
     st.supervisor.mark_activity();
 
     if is_stream_route(&full_route) {
+        let release_guard_on_response = full_route == routes::ENSURE_CATEGORY;
+        let stream_guard = if release_guard_on_response {
+            drop(guard);
+            None
+        } else {
+            Some(guard)
+        };
         let stream = async_stream::stream! {
+            let _guard = stream_guard;
             match proxy_stream_raw(&st.socket_path, &full_route, &body).await {
                 Ok(mut rx) => {
                     while let Some(item) = rx.recv().await {
@@ -150,13 +169,66 @@ async fn handle_proxy_unary_or_stream(
             .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response());
     }
 
-    match proxy_unary_raw(&st.socket_path, &full_route, &body).await {
+    let response = match proxy_unary_raw(&st.socket_path, &full_route, &body).await {
         Ok(resp_bytes) => Response::builder()
             .status(StatusCode::OK)
             .header("content-type", "application/msgpack")
             .body(Body::from(resp_bytes))
             .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response()),
         Err(e) => msgpack_error_response(e),
+    };
+    drop(guard);
+    response
+}
+
+struct ProxyActivityGuard {
+    state: ProxyState,
+}
+
+impl ProxyActivityGuard {
+    fn new(state: ProxyState) -> Self {
+        state.active_requests.fetch_add(1, Ordering::SeqCst);
+        state.idle_generation.fetch_add(1, Ordering::SeqCst);
+        state.supervisor.mark_activity();
+        Self { state }
+    }
+}
+
+impl Drop for ProxyActivityGuard {
+    fn drop(&mut self) {
+        self.state.supervisor.mark_activity();
+        if let Ok(mut last) = self.state.last_completed_at.lock() {
+            *last = Instant::now();
+        }
+
+        self.state.active_requests.fetch_sub(1, Ordering::SeqCst);
+        if self.state.idle_reap_secs == 0 {
+            return;
+        }
+
+        let state = self.state.clone();
+        let generation = state.idle_generation.fetch_add(1, Ordering::SeqCst) + 1;
+        tokio::spawn(async move {
+            let idle = Duration::from_secs(state.idle_reap_secs);
+            tokio::time::sleep(idle).await;
+            if state.idle_generation.load(Ordering::SeqCst) != generation {
+                return;
+            }
+            let idle_for = state
+                .last_completed_at
+                .lock()
+                .map(|last| last.elapsed())
+                .unwrap_or_default();
+            if idle_for < idle {
+                return;
+            }
+            let active = state.active_requests.load(Ordering::SeqCst);
+            tracing::info!(
+                "ai-worker proxy idle for {}s, hard-reaping child (active_requests={active})",
+                idle_for.as_secs()
+            );
+            let _ = state.supervisor.kill_and_respawn().await;
+        });
     }
 }
 

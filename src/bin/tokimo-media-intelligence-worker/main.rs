@@ -245,6 +245,6 @@ async fn run_supervised_http(addr: String, args: &Args, config: &MediaIntelligen
         "ai-worker supervised HTTP listening on {addr}; child idle timeout: {idle_secs}s; profile: {}",
         config.acceleration_profile.as_str()
     );
-    axum::serve(listener, http::proxy_router(supervisor, socket_path)).await?;
+    axum::serve(listener, http::proxy_router(supervisor, socket_path, idle_secs)).await?;
     Ok(())
 }
