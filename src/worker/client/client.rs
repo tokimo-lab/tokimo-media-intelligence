@@ -98,6 +98,10 @@ impl MediaIntelligenceWorkerClient {
                 if !settings.hardware_acceleration_enabled {
                     extra_env.push(("TOKIMO_MEDIA_INTELLIGENCE_DISABLE_ACCEL".to_string(), "1".to_string()));
                 }
+                extra_env.push((
+                    "TOKIMO_MEDIA_INTELLIGENCE_ACCEL_PROFILE".to_string(),
+                    settings.acceleration_profile.as_env_value().to_string(),
+                ));
                 let cfg = SupervisorConfig {
                     worker_binary: PathBuf::from(worker_binary),
                     socket_path,
@@ -437,6 +441,7 @@ impl MediaIntelligenceWorkerClient {
 fn empty_info() -> wire::WorkerInfo {
     wire::WorkerInfo {
         accel_provider: wire::AccelProvider::Cpu,
+        acceleration_profile: wire::AccelerationProfile::Balanced,
         models_dir: String::new(),
         ocr_det_max_side: None,
         ocr_enabled: false,

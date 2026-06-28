@@ -16,10 +16,30 @@ pub enum MediaIntelligenceWorkerMode {
     Remote,
 }
 
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum AccelerationProfile {
+    #[default]
+    Balanced,
+    LowVram,
+}
+
+impl AccelerationProfile {
+    #[must_use]
+    pub fn as_env_value(self) -> &'static str {
+        match self {
+            Self::Balanced => "balanced",
+            Self::LowVram => "low_vram",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MediaIntelligenceWorkerSettings {
     #[serde(default = "default_true")]
     pub hardware_acceleration_enabled: bool,
+    #[serde(default)]
+    pub acceleration_profile: AccelerationProfile,
     pub mode: MediaIntelligenceWorkerMode,
     /// When `mode = Remote`, the base URL (e.g. `http://ai-worker:5679`).
     /// When `mode = Auto`, optional UDS override (otherwise
@@ -42,6 +62,7 @@ impl Default for MediaIntelligenceWorkerSettings {
     fn default() -> Self {
         Self {
             hardware_acceleration_enabled: true,
+            acceleration_profile: AccelerationProfile::Balanced,
             mode: MediaIntelligenceWorkerMode::Auto,
             remote_url: None,
             keepalive_always: false,
@@ -58,6 +79,9 @@ impl MediaIntelligenceWorkerSettings {
         if self.keepalive_always {
             return 0;
         }
-        self.idle_timeout_secs.unwrap_or(900)
+        self.idle_timeout_secs.unwrap_or(match self.acceleration_profile {
+            AccelerationProfile::Balanced => 900,
+            AccelerationProfile::LowVram => 30,
+        })
     }
 }

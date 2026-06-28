@@ -107,7 +107,7 @@ impl UdsTransport {
 ///   "CALL /v1/ocr\n"
 ///   "SSTREAM /v1/models/ensure_category\n"  (server-streamed response)
 ///   "BIDI /v1/stt/stream\n"
-async fn write_header<W: AsyncWrite + Unpin>(w: &mut W, kind: &str, route: &str) -> RpcResult<()> {
+pub async fn write_header<W: AsyncWrite + Unpin>(w: &mut W, kind: &str, route: &str) -> RpcResult<()> {
     use tokio::io::AsyncWriteExt;
     let line = format!("{kind} {route}\n");
     w.write_all(line.as_bytes()).await?;

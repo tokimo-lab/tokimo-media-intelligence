@@ -57,6 +57,7 @@ async fn unary_inner(ai: &Arc<MediaIntelligenceService>, route: &str, req_bytes:
             let st = ai.status();
             let info = wire::WorkerInfo {
                 accel_provider: convert::accel_to_wire(st.accel_provider),
+                acceleration_profile: convert::acceleration_profile_to_wire(cfg.acceleration_profile),
                 models_dir: cfg.models_dir.clone(),
                 ocr_det_max_side: cfg.ocr_det_max_side,
                 ocr_enabled: ai.is_ocr_enabled(),

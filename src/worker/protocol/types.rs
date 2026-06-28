@@ -16,6 +16,24 @@ pub enum AccelProvider {
     Cpu,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AccelerationProfile {
+    #[default]
+    Balanced,
+    LowVram,
+}
+
+impl AccelerationProfile {
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Balanced => "balanced",
+            Self::LowVram => "low_vram",
+        }
+    }
+}
+
 impl AccelProvider {
     /// Short human-readable name (matches the strings previously returned by
     /// `tokimo_media_intelligence::config::AccelProvider::name()`).
@@ -46,6 +64,7 @@ pub struct MediaIntelligenceStatus {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkerInfo {
     pub accel_provider: AccelProvider,
+    pub acceleration_profile: AccelerationProfile,
     pub models_dir: String,
     pub ocr_det_max_side: Option<u32>,
     pub ocr_enabled: bool,

@@ -13,6 +13,13 @@ pub fn accel_to_wire(p: rm::AccelProvider) -> wire::AccelProvider {
     }
 }
 
+pub fn acceleration_profile_to_wire(p: rm::config::AccelerationProfile) -> wire::AccelerationProfile {
+    match p {
+        rm::config::AccelerationProfile::Balanced => wire::AccelerationProfile::Balanced,
+        rm::config::AccelerationProfile::LowVram => wire::AccelerationProfile::LowVram,
+    }
+}
+
 pub fn status_to_wire(s: rm::MediaIntelligenceStatus) -> wire::MediaIntelligenceStatus {
     wire::MediaIntelligenceStatus {
         accel_provider: accel_to_wire(s.accel_provider),

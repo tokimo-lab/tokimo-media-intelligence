@@ -20,7 +20,7 @@ pub use super::protocol::types as wire;
 pub use super::protocol::{RpcError, RpcResult};
 
 pub use client::{MediaIntelligenceWorkerClient, StreamingSttSession};
-pub use settings::{MediaIntelligenceWorkerMode, MediaIntelligenceWorkerSettings};
+pub use settings::{AccelerationProfile, MediaIntelligenceWorkerMode, MediaIntelligenceWorkerSettings};
 pub use supervisor::{Supervisor, SupervisorConfig};
 
 use std::path::{Path, PathBuf};

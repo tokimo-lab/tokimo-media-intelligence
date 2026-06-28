@@ -75,7 +75,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
-use config::{MediaIntelligenceConfig, data_local_path};
+use config::{AccelerationProfile, MediaIntelligenceConfig, data_local_path};
 use tokio::sync::{OnceCell, RwLock};
 
 /// How long an idle model stays in memory before eviction.
@@ -95,6 +95,40 @@ fn cuda_device_id() -> i32 {
         .ok()
         .and_then(|v| v.parse::<i32>().ok())
         .unwrap_or(0)
+}
+
+fn cuda_memory_limit_mb() -> Option<usize> {
+    if let Ok(v) = std::env::var("TOKIMO_MEDIA_INTELLIGENCE_CUDA_MEMORY_LIMIT_MB")
+        && let Ok(mb) = v.trim().parse::<usize>()
+        && mb > 0
+    {
+        return Some(mb);
+    }
+
+    if active_acceleration_profile() != AccelerationProfile::LowVram {
+        return None;
+    }
+
+    query_cuda_total_memory_mb().map(|total| ((total * 70) / 100).clamp(1024, 4096))
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+fn query_cuda_total_memory_mb() -> Option<usize> {
+    let output = std::process::Command::new("nvidia-smi")
+        .args(["--query-gpu=memory.total", "--format=csv,noheader,nounits"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .find_map(|line| line.trim().parse::<usize>().ok())
+}
+
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+fn query_cuda_total_memory_mb() -> Option<usize> {
+    None
 }
 
 /// Build an ONNX Runtime session from a model file.
@@ -182,12 +216,21 @@ pub fn build_session(path: impl AsRef<std::path::Path>) -> ort::Result<ort::sess
     // NVIDIA CUDA (Linux / Windows)
     if ep == AccelProvider::Cuda {
         let device_id = cuda_device_id();
+        let mut cuda = ort::ep::CUDA::default().with_device_id(device_id);
+        if active_acceleration_profile() == AccelerationProfile::LowVram {
+            cuda = cuda
+                .with_arena_extend_strategy(ort::ep::ArenaExtendStrategy::SameAsRequested)
+                .with_conv_algorithm_search(ort::ep::cuda::ConvAlgorithmSearch::Default)
+                .with_conv_max_workspace(false);
+        }
+        if let Some(limit_mb) = cuda_memory_limit_mb() {
+            let limit_bytes = limit_mb.saturating_mul(1024).saturating_mul(1024);
+            tracing::info!("[ort] CUDA memory arena limit for {filename}: {limit_mb} MiB");
+            cuda = cuda.with_memory_limit(limit_bytes);
+        }
         let r = Session::builder()?
             .with_intra_threads(ort_intra_op_threads())?
-            .with_execution_providers([ort::ep::CUDA::default()
-                .with_device_id(device_id)
-                .build()
-                .error_on_failure()]);
+            .with_execution_providers([cuda.build().error_on_failure()]);
         match r {
             Ok(mut b) => {
                 let s = b.commit_from_file(path)?;
@@ -208,10 +251,15 @@ pub fn build_session(path: impl AsRef<std::path::Path>) -> ort::Result<ort::sess
 
 /// The GPU execution provider selected at init (CPU = disabled / not available).
 static ACTIVE_EP: std::sync::OnceLock<AccelProvider> = std::sync::OnceLock::new();
+static ACTIVE_PROFILE: std::sync::OnceLock<AccelerationProfile> = std::sync::OnceLock::new();
 
 /// Returns the active execution provider (set once during `MediaIntelligenceService::new`).
 pub fn active_ep() -> AccelProvider {
     ACTIVE_EP.get().copied().unwrap_or(AccelProvider::Cpu)
+}
+
+pub fn active_acceleration_profile() -> AccelerationProfile {
+    ACTIVE_PROFILE.get().copied().unwrap_or(AccelerationProfile::Balanced)
 }
 
 /// Backward-compatible helper — true only when CUDA EP is active.
@@ -524,11 +572,15 @@ pub struct MediaIntelligenceService {
 }
 
 impl MediaIntelligenceService {
-    pub fn new(config: MediaIntelligenceConfig) -> Arc<Self> {
+    pub fn new(mut config: MediaIntelligenceConfig) -> Arc<Self> {
+        if config.acceleration_profile == AccelerationProfile::LowVram && config.ocr_det_max_side.is_none() {
+            config.ocr_det_max_side = Some(2560);
+        }
         let (ep, ep_desc) = detect_best_ep(config.disable_hardware_acceleration);
 
         // OnceLock — first call wins; subsequent MediaIntelligenceService::new calls (tests) are no-ops.
         let _ = ACTIVE_EP.set(ep);
+        let _ = ACTIVE_PROFILE.set(config.acceleration_profile);
 
         let applied = {
             let data_local = std::path::PathBuf::from(data_local_path());
