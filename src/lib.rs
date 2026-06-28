@@ -574,7 +574,7 @@ pub struct MediaIntelligenceService {
 impl MediaIntelligenceService {
     pub fn new(mut config: MediaIntelligenceConfig) -> Arc<Self> {
         if config.acceleration_profile == AccelerationProfile::LowVram && config.ocr_det_max_side.is_none() {
-            config.ocr_det_max_side = Some(2560);
+            config.ocr_det_max_side = Some(2048);
         }
         let (ep, ep_desc) = detect_best_ep(config.disable_hardware_acceleration);
 

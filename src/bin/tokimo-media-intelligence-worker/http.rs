@@ -17,6 +17,7 @@ use axum::extract::{Path as AxPath, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
+use serde::Serialize;
 use tokimo_media_intelligence::MediaIntelligenceService;
 use tokimo_media_intelligence::worker::client::Supervisor;
 use tokimo_media_intelligence::worker::protocol::RpcError;
@@ -41,6 +42,7 @@ struct HttpState {
 struct ProxyState {
     supervisor: Arc<Supervisor>,
     socket_path: Arc<std::path::PathBuf>,
+    fallback_info: Arc<wire::WorkerInfo>,
     active_requests: Arc<AtomicUsize>,
     idle_generation: Arc<AtomicU64>,
     last_completed_at: Arc<Mutex<Instant>>,
@@ -56,10 +58,16 @@ pub fn router(ai: Arc<MediaIntelligenceService>, sig: mpsc::Sender<WorkerSignal>
         .with_state(st)
 }
 
-pub fn proxy_router(supervisor: Arc<Supervisor>, socket_path: std::path::PathBuf, idle_reap_secs: u64) -> Router {
+pub fn proxy_router(
+    supervisor: Arc<Supervisor>,
+    socket_path: std::path::PathBuf,
+    idle_reap_secs: u64,
+    fallback_info: wire::WorkerInfo,
+) -> Router {
     let st = ProxyState {
         supervisor,
         socket_path: Arc::new(socket_path),
+        fallback_info: Arc::new(fallback_info),
         active_requests: Arc::new(AtomicUsize::new(0)),
         idle_generation: Arc::new(AtomicU64::new(0)),
         last_completed_at: Arc::new(Mutex::new(Instant::now())),
@@ -81,7 +89,10 @@ fn is_stream_route(route: &str) -> bool {
 
 async fn handle_unary_or_stream(State(st): State<HttpState>, AxPath(route): AxPath<String>, body: Bytes) -> Response {
     let full_route = format!("/v1/{route}");
-    let _ = st.sig.send(WorkerSignal::Activity).await;
+    let counts_as_activity = full_route != routes::INFO;
+    if counts_as_activity {
+        let _ = st.sig.send(WorkerSignal::Activity).await;
+    }
 
     if is_stream_route(&full_route) {
         let (tx, rx) = mpsc::channel::<tokimo_media_intelligence::worker::protocol::RpcResult<wire::ProgressFrame>>(32);
@@ -109,6 +120,9 @@ async fn handle_unary_or_stream(State(st): State<HttpState>, AxPath(route): AxPa
     }
 
     let resp_bytes = dispatch::dispatch_unary(&st.ai, &full_route, &body).await;
+    if counts_as_activity {
+        let _ = st.sig.send(WorkerSignal::Activity).await;
+    }
     if full_route == routes::SHUTDOWN {
         let _ = st.sig.send(WorkerSignal::Shutdown).await;
     }
@@ -125,6 +139,20 @@ async fn handle_proxy_unary_or_stream(
     body: Bytes,
 ) -> Response {
     let full_route = format!("/v1/{route}");
+    if full_route == routes::INFO {
+        if !st.supervisor.child_is_running().await {
+            return msgpack_ok_response(&*st.fallback_info);
+        }
+        return match proxy_unary_raw(&st.socket_path, &full_route, &body).await {
+            Ok(resp_bytes) => Response::builder()
+                .status(StatusCode::OK)
+                .header("content-type", "application/msgpack")
+                .body(Body::from(resp_bytes))
+                .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response()),
+            Err(_e) => msgpack_ok_response(&*st.fallback_info),
+        };
+    }
+
     let guard = ProxyActivityGuard::new(st.clone());
     if let Err(e) = st.supervisor.ensure_up().await {
         return msgpack_error_response(e);
@@ -251,6 +279,15 @@ async fn ws_stt_stream_proxy(ws: WebSocketUpgrade, State(_st): State<ProxyState>
 fn msgpack_error_response(e: RpcError) -> Response {
     let body = rmp_serde::to_vec_named::<tokimo_media_intelligence::worker::protocol::RpcResult<()>>(&Err(e))
         .unwrap_or_default();
+    Response::builder()
+        .status(StatusCode::OK)
+        .header("content-type", "application/msgpack")
+        .body(Body::from(body))
+        .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())
+}
+
+fn msgpack_ok_response<T: Serialize>(value: &T) -> Response {
+    let body = rmp_serde::to_vec_named(&Ok::<&T, RpcError>(value)).unwrap_or_default();
     Response::builder()
         .status(StatusCode::OK)
         .header("content-type", "application/msgpack")

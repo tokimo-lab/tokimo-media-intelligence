@@ -31,6 +31,7 @@ use clap::{Parser, ValueEnum};
 use supervisor::WorkerSignal;
 use tokimo_media_intelligence::config::{AccelerationProfile, MediaIntelligenceConfig};
 use tokimo_media_intelligence::worker::client::{AnyTransport, Supervisor, SupervisorConfig, UdsTransport};
+use tokimo_media_intelligence::worker::protocol::types as wire;
 use tokimo_media_intelligence::{MediaIntelligenceService, config::data_local_path};
 use tokio::net::TcpListener;
 use tokio::sync::mpsc;
@@ -245,6 +246,35 @@ async fn run_supervised_http(addr: String, args: &Args, config: &MediaIntelligen
         "ai-worker supervised HTTP listening on {addr}; child idle timeout: {idle_secs}s; profile: {}",
         config.acceleration_profile.as_str()
     );
-    axum::serve(listener, http::proxy_router(supervisor, socket_path, idle_secs)).await?;
+    axum::serve(
+        listener,
+        http::proxy_router(supervisor, socket_path, idle_secs, fallback_worker_info(config)),
+    )
+    .await?;
     Ok(())
+}
+
+fn fallback_worker_info(config: &MediaIntelligenceConfig) -> wire::WorkerInfo {
+    wire::WorkerInfo {
+        accel_provider: wire::AccelProvider::Cpu,
+        acceleration_profile: convert::acceleration_profile_to_wire(config.acceleration_profile),
+        models_dir: config.models_dir.clone(),
+        ocr_det_max_side: config.ocr_det_max_side,
+        ocr_enabled: config.enable_ocr,
+        clip_enabled: config.enable_clip,
+        face_enabled: config.enable_face,
+        stt_enabled: config.enable_stt,
+        models_ready: false,
+        ocr_models_ready: false,
+        ocr_server_models_ready: false,
+        ocr_mobile_models_ready: false,
+        clip_models_ready: false,
+        face_models_ready: false,
+        stt_model_ready: false,
+        streaming_stt_model_ready: false,
+        ocr_loaded: false,
+        clip_loaded: false,
+        face_loaded: false,
+        stt_loaded: false,
+    }
 }

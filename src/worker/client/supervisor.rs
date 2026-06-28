@@ -92,6 +92,33 @@ impl Supervisor {
         *self.last_activity.lock() = Instant::now();
     }
 
+    /// Check whether the supervised child is currently alive without spawning it.
+    pub async fn child_is_running(&self) -> bool {
+        if self.cfg.remote {
+            return false;
+        }
+
+        let mut st = self.state.lock().await;
+        let Some(child) = st.child.as_mut() else {
+            return false;
+        };
+
+        match child.try_wait() {
+            Ok(Some(_status)) => {
+                st.child = None;
+                st.generation = st.generation.wrapping_add(1);
+                false
+            }
+            Ok(None) => true,
+            Err(e) => {
+                tracing::warn!("ai-worker try_wait failed: {e}");
+                st.child = None;
+                st.generation = st.generation.wrapping_add(1);
+                false
+            }
+        }
+    }
+
     /// Idempotent: make sure the worker process is alive and responsive.
     pub async fn ensure_up(self: &Arc<Self>) -> RpcResult<()> {
         if self.cfg.remote {

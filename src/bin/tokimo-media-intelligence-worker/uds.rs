@@ -53,8 +53,10 @@ async fn handle_conn(
             let req_bytes: Vec<u8> = read_frame_raw(&mut r).await?;
             let resp_bytes = dispatch::dispatch_unary(&ai, &route, &req_bytes).await;
             write_frame_raw(&mut w, &resp_bytes).await?;
-            // Record activity — any RPC counts as a signal to keep the worker alive.
-            let _ = sig.send(WorkerSignal::Activity).await;
+            // Metadata polling must not keep the model worker alive in low-vram mode.
+            if route != tokimo_media_intelligence::worker::protocol::routes::INFO {
+                let _ = sig.send(WorkerSignal::Activity).await;
+            }
             // If this was a shutdown call, trigger process exit AFTER ack.
             if route == tokimo_media_intelligence::worker::protocol::routes::SHUTDOWN {
                 let _ = sig.send(WorkerSignal::Shutdown).await;
