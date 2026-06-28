@@ -61,6 +61,8 @@ struct Args {
     disable_face: bool,
     #[arg(long, default_value = "false")]
     disable_stt: bool,
+    #[arg(long, default_value = "false")]
+    disable_hardware_acceleration: bool,
 }
 
 #[tokio::main]
@@ -85,6 +87,7 @@ async fn main() -> anyhow::Result<()> {
     config.enable_clip = !args.disable_clip;
     config.enable_face = !args.disable_face;
     config.enable_stt = !args.disable_stt;
+    config.disable_hardware_acceleration = config.disable_hardware_acceleration || args.disable_hardware_acceleration;
 
     let ai = MediaIntelligenceService::new(config);
     ai.start_idle_eviction();

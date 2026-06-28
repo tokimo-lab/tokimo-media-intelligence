@@ -2,6 +2,10 @@
 
 use serde::{Deserialize, Serialize};
 
+const fn default_true() -> bool {
+    true
+}
+
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum MediaIntelligenceWorkerMode {
@@ -14,6 +18,8 @@ pub enum MediaIntelligenceWorkerMode {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MediaIntelligenceWorkerSettings {
+    #[serde(default = "default_true")]
+    pub hardware_acceleration_enabled: bool,
     pub mode: MediaIntelligenceWorkerMode,
     /// When `mode = Remote`, the base URL (e.g. `http://ai-worker:5679`).
     /// When `mode = Auto`, optional UDS override (otherwise
@@ -35,6 +41,7 @@ pub struct MediaIntelligenceWorkerSettings {
 impl Default for MediaIntelligenceWorkerSettings {
     fn default() -> Self {
         Self {
+            hardware_acceleration_enabled: true,
             mode: MediaIntelligenceWorkerMode::Auto,
             remote_url: None,
             keepalive_always: false,

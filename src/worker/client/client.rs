@@ -94,7 +94,10 @@ impl MediaIntelligenceWorkerClient {
         let client = match settings.mode {
             MediaIntelligenceWorkerMode::Remote => Self::new(Arc::clone(&transport)),
             MediaIntelligenceWorkerMode::Auto => {
-                let extra_env = resolve_media_intelligence_python_dir();
+                let mut extra_env = resolve_media_intelligence_python_dir();
+                if !settings.hardware_acceleration_enabled {
+                    extra_env.push(("TOKIMO_MEDIA_INTELLIGENCE_DISABLE_ACCEL".to_string(), "1".to_string()));
+                }
                 let cfg = SupervisorConfig {
                     worker_binary: PathBuf::from(worker_binary),
                     socket_path,

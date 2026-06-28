@@ -427,7 +427,11 @@ fn detect_directml() -> Result<(), &'static str> {
 }
 
 /// Detect the best available EP and return it with a human-readable description for logging.
-fn detect_best_ep() -> (AccelProvider, String) {
+fn detect_best_ep(disable_hardware_acceleration: bool) -> (AccelProvider, String) {
+    if disable_hardware_acceleration {
+        return (AccelProvider::Cpu, "CPU (hardware acceleration disabled)".into());
+    }
+
     #[cfg(target_os = "macos")]
     match detect_coreml() {
         Ok(()) => return (AccelProvider::CoreML, "CoreML".into()),
@@ -521,7 +525,7 @@ pub struct MediaIntelligenceService {
 
 impl MediaIntelligenceService {
     pub fn new(config: MediaIntelligenceConfig) -> Arc<Self> {
-        let (ep, ep_desc) = detect_best_ep();
+        let (ep, ep_desc) = detect_best_ep(config.disable_hardware_acceleration);
 
         // OnceLock — first call wins; subsequent MediaIntelligenceService::new calls (tests) are no-ops.
         let _ = ACTIVE_EP.set(ep);
