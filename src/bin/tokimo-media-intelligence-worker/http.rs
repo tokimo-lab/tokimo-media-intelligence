@@ -9,12 +9,14 @@ use std::sync::Arc;
 
 use axum::Router;
 use axum::body::{Body, Bytes};
+use axum::extract::DefaultBodyLimit;
 use axum::extract::ws::WebSocketUpgrade;
 use axum::extract::{Path as AxPath, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use tokimo_media_intelligence::MediaIntelligenceService;
+use tokimo_media_intelligence::worker::protocol::frame::MAX_FRAME_BYTES;
 use tokimo_media_intelligence::worker::protocol::routes;
 use tokimo_media_intelligence::worker::protocol::types as wire;
 use tokio::sync::mpsc;
@@ -34,6 +36,7 @@ pub fn router(ai: Arc<MediaIntelligenceService>, sig: mpsc::Sender<WorkerSignal>
     Router::new()
         .route("/v1/{*route}", post(handle_unary_or_stream))
         .route("/v1/stt/stream", get(ws_stt_stream))
+        .layer(DefaultBodyLimit::max(MAX_FRAME_BYTES as usize))
         .with_state(st)
 }
 

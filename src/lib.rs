@@ -90,6 +90,13 @@ fn ort_intra_op_threads() -> usize {
     (cpus / 2).clamp(4, 16)
 }
 
+fn cuda_device_id() -> i32 {
+    std::env::var("TOKIMO_MEDIA_INTELLIGENCE_CUDA_DEVICE_ID")
+        .ok()
+        .and_then(|v| v.parse::<i32>().ok())
+        .unwrap_or(0)
+}
+
 /// Build an ONNX Runtime session from a model file.
 /// Uses the execution provider selected at init (CUDA / ROCm / CoreML / DirectML / CPU).
 /// If the selected GPU EP fails to register, falls back to CPU with a warning.
@@ -174,17 +181,21 @@ pub fn build_session(path: impl AsRef<std::path::Path>) -> ort::Result<ort::sess
 
     // NVIDIA CUDA (Linux / Windows)
     if ep == AccelProvider::Cuda {
+        let device_id = cuda_device_id();
         let r = Session::builder()?
             .with_intra_threads(ort_intra_op_threads())?
-            .with_execution_providers([ort::ep::CUDA::default().build().error_on_failure()]);
+            .with_execution_providers([ort::ep::CUDA::default()
+                .with_device_id(device_id)
+                .build()
+                .error_on_failure()]);
         match r {
             Ok(mut b) => {
                 let s = b.commit_from_file(path)?;
-                tracing::info!("[ort] ✓ Session {filename} loaded with CUDA EP");
+                tracing::info!("[ort] ✓ Session {filename} loaded with CUDA EP (device {device_id})");
                 return Ok(s);
             }
             Err(e) => {
-                tracing::warn!("[ort] CUDA EP failed for {filename}: {e} — falling back to CPU");
+                tracing::warn!("[ort] CUDA EP registration failed for {filename}: {e} — falling back to CPU");
             }
         }
     }
@@ -234,7 +245,12 @@ fn lib_available(lib: &str) -> bool {
             .ok()
             .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
             .unwrap_or_default();
-        ldconfig.contains(lib) || lib_dirs.iter().any(|d| std::path::Path::new(d).join(lib).exists())
+        let ld_library_path = std::env::var_os("LD_LIBRARY_PATH")
+            .map(|paths| std::env::split_paths(&paths).collect::<Vec<_>>())
+            .unwrap_or_default();
+        ldconfig.contains(lib)
+            || lib_dirs.iter().any(|d| std::path::Path::new(d).join(lib).exists())
+            || ld_library_path.iter().any(|d| d.join(lib).exists())
     }
     #[cfg(target_os = "macos")]
     {
@@ -260,10 +276,77 @@ fn gpu_device_present() -> bool {
             .is_ok_and(|o| o.status.success() && !o.stdout.is_empty())
 }
 
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+fn char_device_status(path: &str) -> Result<(), String> {
+    use std::os::unix::fs::FileTypeExt;
+
+    match std::fs::metadata(path) {
+        Ok(meta) if meta.file_type().is_char_device() => Ok(()),
+        Ok(_) => Err(format!("{path} is not a character device")),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(format!("{path} is not accessible: {e}")),
+    }
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+fn cuda_runtime_device_count() -> Result<i32, String> {
+    use std::ffi::{CStr, CString};
+
+    type CudaGetDeviceCount = unsafe extern "C" fn(*mut libc::c_int) -> libc::c_int;
+    type CudaGetErrorString = unsafe extern "C" fn(libc::c_int) -> *const libc::c_char;
+
+    let lib_name = CString::new("libcudart.so.12").expect("static library name has no nul");
+    let count_symbol = CString::new("cudaGetDeviceCount").expect("static symbol has no nul");
+    let error_symbol = CString::new("cudaGetErrorString").expect("static symbol has no nul");
+
+    // SAFETY: We only call well-known CUDA Runtime API symbols with their C ABI
+    // signatures, and close the library before returning from this probe.
+    unsafe {
+        let lib = libc::dlopen(lib_name.as_ptr(), libc::RTLD_NOW | libc::RTLD_LOCAL);
+        if lib.is_null() {
+            return Err(dl_error("dlopen libcudart.so.12 failed"));
+        }
+
+        let count_ptr = libc::dlsym(lib, count_symbol.as_ptr());
+        let error_ptr = libc::dlsym(lib, error_symbol.as_ptr());
+        if count_ptr.is_null() || error_ptr.is_null() {
+            let reason = dl_error("dlsym CUDA Runtime API failed");
+            libc::dlclose(lib);
+            return Err(reason);
+        }
+
+        let cuda_get_device_count: CudaGetDeviceCount = std::mem::transmute(count_ptr);
+        let cuda_get_error_string: CudaGetErrorString = std::mem::transmute(error_ptr);
+
+        let mut count = -1;
+        let rc = cuda_get_device_count(&mut count);
+        if rc != 0 {
+            let msg = CStr::from_ptr(cuda_get_error_string(rc)).to_string_lossy().into_owned();
+            libc::dlclose(lib);
+            return Err(format!("cudaGetDeviceCount failed: {msg} ({rc})"));
+        }
+
+        libc::dlclose(lib);
+        Ok(count)
+    }
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+fn dl_error(prefix: &str) -> String {
+    // SAFETY: `dlerror` returns a thread-local C string pointer owned by libc.
+    unsafe {
+        let err = libc::dlerror();
+        if err.is_null() {
+            return prefix.to_string();
+        }
+        format!("{prefix}: {}", std::ffi::CStr::from_ptr(err).to_string_lossy())
+    }
+}
+
 /// Detect NVIDIA CUDA — Linux / Windows.
 /// Returns Ok(()) if ready, Err with the first missing piece otherwise.
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-fn detect_cuda() -> Result<(), &'static str> {
+fn detect_cuda() -> Result<(), String> {
     let checks: &[(&str, &str)] = &[
         (
             "libonnxruntime_providers_cuda.so",
@@ -278,12 +361,19 @@ fn detect_cuda() -> Result<(), &'static str> {
     ];
     for (lib, reason) in checks {
         if !lib_available(lib) {
-            return Err(reason);
+            return Err(reason.to_string());
         }
     }
     #[cfg(not(target_os = "windows"))]
     if !gpu_device_present() {
-        return Err("no GPU device (/dev/nvidia0 absent, nvidia-smi failed)");
+        return Err("no GPU device (/dev/nvidia0 absent, nvidia-smi failed)".to_string());
+    }
+    char_device_status("/dev/nvidia0")?;
+    char_device_status("/dev/nvidiactl")?;
+    char_device_status("/dev/nvidia-uvm")?;
+    let device_count = cuda_runtime_device_count()?;
+    if device_count <= 0 {
+        return Err("cudaGetDeviceCount returned no CUDA devices".to_string());
     }
     Ok(())
 }

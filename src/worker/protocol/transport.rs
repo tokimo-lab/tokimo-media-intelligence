@@ -329,8 +329,8 @@ impl Transport for HttpTransport {
                 String::from_utf8_lossy(&bytes)
             )));
         }
-        let res: Res = rmp_serde::from_slice(&bytes)?;
-        Ok(res)
+        let res: RpcResult<Res> = rmp_serde::from_slice::<Result<Res, RpcError>>(&bytes)?;
+        res
     }
 
     async fn call_stream<Req, Item>(&self, route: &str, req: &Req) -> RpcResult<mpsc::Receiver<RpcResult<Item>>>
